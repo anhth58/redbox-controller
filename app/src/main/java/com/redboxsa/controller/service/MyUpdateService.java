@@ -18,6 +18,7 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
+import android.provider.Settings;
 import android.telephony.TelephonyManager;
 import android.text.format.DateUtils;
 import android.util.Log;
@@ -86,7 +87,11 @@ public class MyUpdateService extends IntentService {
                 return null;
             }
         }
-        return tManager.getDeviceId();
+        String uuid = tManager.getDeviceId();;
+        if (uuid == null || uuid.isEmpty()) {
+            uuid = Settings.Secure.getString(this.getContentResolver(),Settings.Secure.ANDROID_ID);
+        }
+        return uuid;
     }
 
     private boolean isPackageInstalled(String packageName, PackageManager packageManager) {
