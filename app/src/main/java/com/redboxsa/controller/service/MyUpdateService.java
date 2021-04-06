@@ -13,6 +13,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -51,12 +52,13 @@ import static com.redboxsa.controller.common.SocketController.firstTry;
 public class MyUpdateService extends IntentService {
     private Socket socket;
     private String mUUID;
-    private final static int VERSION = 0;
+    private final static int VERSION = 1;
 
     private Emitter.Listener turnOn = new Emitter.Listener() {
         @Override
         public void call(Object... args) {
             Log.d("Emitter.Listener", "START APP");
+            selfUpgrade();
             startApp();
         }
     };
@@ -74,6 +76,14 @@ public class MyUpdateService extends IntentService {
     }
 
     public String getUUID(){
+        String uuid;
+        SharedPreferences prefs = this.getSharedPreferences(
+                "FILE", Context.MODE_PRIVATE);
+        uuid = prefs.getString("uuid",null);
+        if (uuid != null && !uuid.isEmpty()) {
+            Log.d("UUID 1", uuid);
+            return uuid;
+        }
         TelephonyManager tManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (checkSelfPermission(Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
@@ -87,9 +97,16 @@ public class MyUpdateService extends IntentService {
                 return null;
             }
         }
-        String uuid = tManager.getDeviceId();;
+        uuid = tManager.getDeviceId();;
         if (uuid == null || uuid.isEmpty()) {
             uuid = Settings.Secure.getString(this.getContentResolver(),Settings.Secure.ANDROID_ID);
+        }
+        Log.d("UUID 2", uuid);
+        if(uuid != null){
+            SharedPreferences prefs2 = this.getSharedPreferences(
+                    "FILE", Context.MODE_PRIVATE);
+            Log.d("save uuid 1", uuid);
+            prefs2.edit().putString("uuid", uuid).apply();;
         }
         return uuid;
     }
@@ -187,20 +204,7 @@ public class MyUpdateService extends IntentService {
     }
 
     private void checkForUpdate() {
-        TelephonyManager tManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (checkSelfPermission(Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
-                // TODO: Consider calling
-                //    Activity#requestPermissions
-                // here to request the missing permissions, and then overriding
-                //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-                //                                          int[] grantResults)
-                // to handle the case where the user grants the permission. See the documentation
-                // for Activity#requestPermissions for more details.
-                return;
-            }
-        }
-        String uuid = tManager.getDeviceId();
+        String uuid = getUUID();
         JsonObjectReq.makeGetRequest(this, UrlCommon.CHECK_FOR_UPDATE + "?uuid=" +uuid, null, null, new ResponseListener() {
             @Override
             public void onRequestCompleted(ApiResponse result) {
@@ -232,20 +236,7 @@ public class MyUpdateService extends IntentService {
     }
 
     private void selfUpgrade() {
-        TelephonyManager tManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (checkSelfPermission(Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
-                // TODO: Consider calling
-                //    Activity#requestPermissions
-                // here to request the missing permissions, and then overriding
-                //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-                //                                          int[] grantResults)
-                // to handle the case where the user grants the permission. See the documentation
-                // for Activity#requestPermissions for more details.
-                return;
-            }
-        }
-        String uuid = tManager.getDeviceId();
+        String uuid = getUUID();
         JsonObjectReq.makeGetRequest(this, UrlCommon.CHECK_FOR_SELF_UPDATE + "?uuid=" +uuid, null, null, new ResponseListener() {
             @Override
             public void onRequestCompleted(ApiResponse result) {
@@ -260,7 +251,7 @@ public class MyUpdateService extends IntentService {
                         boolean autoUpdate = jsonObject.getBoolean("auto_update");
                         String url = jsonObject.getString("apk_url");
                         PackageManager pm = getPackageManager();
-                        if((VERSION < newVersion && (autoUpdate || approvedApk)) || !isPackageInstalled("com.redbox.locker",pm)){
+                        if((VERSION < newVersion && (autoUpdate || approvedApk))){
                             downloadSelf(newVersion, url);
                         }
                     }
@@ -480,7 +471,7 @@ public class MyUpdateService extends IntentService {
         // The update frequency should often be user configurable.  This is not.
 
         long currentTimeMillis = System.currentTimeMillis();
-        long nextUpdateTimeMillis = currentTimeMillis + 1 * DateUtils.MINUTE_IN_MILLIS;
+        long nextUpdateTimeMillis = currentTimeMillis + 30 * DateUtils.MINUTE_IN_MILLIS;
         Log.d("Schedule next update", nextUpdateTimeMillis+"");
 
         AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);

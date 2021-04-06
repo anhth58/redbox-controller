@@ -38,5 +38,4 @@ public class UrlCommon {
 
     public static final String CHECK_FOR_UPDATE = URL + "/api/get-app-version";
     public static final String CHECK_FOR_SELF_UPDATE = URL + "/api/get-app-controller-version";
-
 }
