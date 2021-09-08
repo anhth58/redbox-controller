@@ -1,5 +1,6 @@
 package com.redboxsa.controller.common;
 
+import com.github.nkzawa.engineio.client.transports.WebSocket;
 import com.github.nkzawa.socketio.client.IO;
 import com.github.nkzawa.socketio.client.Socket;
 
@@ -12,7 +13,11 @@ public class SocketController {
     public static Socket getSocket() {
         if (socket == null) {
             try {
-                socket = IO.socket(UrlCommon.URL);
+                IO.Options options = new IO.Options();
+                options.transports = new String[]{WebSocket.NAME};
+//            options.query = "token=my custom token";
+
+                socket = IO.socket(UrlCommon.URL,options);
             } catch (URISyntaxException e) {
                 e.printStackTrace();
             }

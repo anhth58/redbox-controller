@@ -52,7 +52,7 @@ import static com.redboxsa.controller.common.SocketController.firstTry;
 public class MyUpdateService extends IntentService {
     private Socket socket;
     private String mUUID;
-    private final static int VERSION = 1;
+    private final static int VERSION = 4;
 
     private Emitter.Listener turnOn = new Emitter.Listener() {
         @Override
@@ -75,11 +75,11 @@ public class MyUpdateService extends IntentService {
         super(MyUpdateService.class.getSimpleName());
     }
 
-    public String getUUID(){
+    public String getUUID() {
         String uuid;
         SharedPreferences prefs = this.getSharedPreferences(
                 "FILE", Context.MODE_PRIVATE);
-        uuid = prefs.getString("uuid",null);
+        uuid = prefs.getString("uuid", null);
         if (uuid != null && !uuid.isEmpty()) {
             Log.d("UUID 1", uuid);
             return uuid;
@@ -97,16 +97,18 @@ public class MyUpdateService extends IntentService {
                 return null;
             }
         }
-        uuid = tManager.getDeviceId();;
+        uuid = tManager.getDeviceId();
+        ;
         if (uuid == null || uuid.isEmpty()) {
-            uuid = Settings.Secure.getString(this.getContentResolver(),Settings.Secure.ANDROID_ID);
+            uuid = Settings.Secure.getString(this.getContentResolver(), Settings.Secure.ANDROID_ID);
         }
         Log.d("UUID 2", uuid);
-        if(uuid != null){
+        if (uuid != null) {
             SharedPreferences prefs2 = this.getSharedPreferences(
                     "FILE", Context.MODE_PRIVATE);
             Log.d("save uuid 1", uuid);
-            prefs2.edit().putString("uuid", uuid).apply();;
+            prefs2.edit().putString("uuid", uuid).apply();
+            ;
         }
         return uuid;
     }
@@ -125,12 +127,12 @@ public class MyUpdateService extends IntentService {
         super.onCreate();
         Log.d("OnCreate", "create service");
 
-        if(!Utils.serviceStarted){
+        if (!Utils.serviceStarted) {
             Utils.serviceStarted = true;
         }
         socket = SocketController.getSocket();
         disconnectSocket();
-        if(firstTry){
+        if (firstTry) {
             Log.d("firstTry", "socket.on");
             firstTry = false;
             socket.on("TURN ON APP", turnOn);
@@ -142,7 +144,7 @@ public class MyUpdateService extends IntentService {
             e.printStackTrace();
         }
         socket.connect();
-        if(mUUID == null){
+        if (mUUID == null) {
             mUUID = getUUID();
         }
 
@@ -155,8 +157,8 @@ public class MyUpdateService extends IntentService {
         socket.emit("JOIN LOCKER ROOM", jsonObject);
     }
 
-    private void disconnectSocket(){
-        if(mUUID == null){
+    private void disconnectSocket() {
+        if (mUUID == null) {
             mUUID = getUUID();
         }
         JSONObject jsonObject = new JSONObject();
@@ -205,13 +207,13 @@ public class MyUpdateService extends IntentService {
 
     private void checkForUpdate() {
         String uuid = getUUID();
-        JsonObjectReq.makeGetRequest(this, UrlCommon.CHECK_FOR_UPDATE + "?uuid=" +uuid, null, null, new ResponseListener() {
+        JsonObjectReq.makeGetRequest(this, UrlCommon.CHECK_FOR_UPDATE + "?uuid=" + uuid, null, null, new ResponseListener() {
             @Override
             public void onRequestCompleted(ApiResponse result) {
                 try {
                     JSONObject response = result.get_jsonObject();
                     boolean state = response.getBoolean("state");
-                    if(state){
+                    if (state) {
                         JSONObject jsonObject = response.getJSONObject("data");
                         int currentVersion = jsonObject.getInt("current_version");
                         int newVersion = jsonObject.getInt("new_version");
@@ -219,7 +221,7 @@ public class MyUpdateService extends IntentService {
                         boolean autoUpdate = jsonObject.getBoolean("auto_update");
                         String url = jsonObject.getString("apk_url");
                         PackageManager pm = getPackageManager();
-                        if((currentVersion < newVersion && (autoUpdate || approvedApk)) || !isPackageInstalled("com.redbox.locker",pm)){
+                        if ((currentVersion != newVersion && (autoUpdate || approvedApk)) || !isPackageInstalled("com.redbox.locker", pm)) {
                             downloadApkFile(newVersion, url);
                         }
                     }
@@ -237,13 +239,13 @@ public class MyUpdateService extends IntentService {
 
     private void selfUpgrade() {
         String uuid = getUUID();
-        JsonObjectReq.makeGetRequest(this, UrlCommon.CHECK_FOR_SELF_UPDATE + "?uuid=" +uuid, null, null, new ResponseListener() {
+        JsonObjectReq.makeGetRequest(this, UrlCommon.CHECK_FOR_SELF_UPDATE + "?current_version=" + VERSION + "&uuid=" + uuid, null, null, new ResponseListener() {
             @Override
             public void onRequestCompleted(ApiResponse result) {
                 try {
                     JSONObject response = result.get_jsonObject();
                     boolean state = response.getBoolean("state");
-                    if(state){
+                    if (state) {
                         JSONObject jsonObject = response.getJSONObject("data");
                         Log.d("Current version", VERSION + "");
                         int newVersion = jsonObject.getInt("new_version");
@@ -251,7 +253,7 @@ public class MyUpdateService extends IntentService {
                         boolean autoUpdate = jsonObject.getBoolean("auto_update");
                         String url = jsonObject.getString("apk_url");
                         PackageManager pm = getPackageManager();
-                        if((VERSION < newVersion && (autoUpdate || approvedApk))){
+                        if ((VERSION < newVersion && (autoUpdate || approvedApk))) {
                             downloadSelf(newVersion, url);
                         }
                     }
@@ -268,7 +270,7 @@ public class MyUpdateService extends IntentService {
         });
     }
 
-    private void downloadApkFile(final int version, String url){
+    private void downloadApkFile(final int version, String url) {
         //get destination to update file and set Uri
         //TODO: First I wanted to store my update .apk file on internal storage for my app but apparently android does not allow you to open and install
         //aplication with existing package from there. So for me, alternative solution is Download directory in external storage. If there is better
@@ -322,7 +324,7 @@ public class MyUpdateService extends IntentService {
         registerReceiver(onComplete, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
     }
 
-    private void downloadSelf(final int version, String url){
+    private void downloadSelf(final int version, String url) {
         //get destination to update file and set Uri
         //TODO: First I wanted to store my update .apk file on internal storage for my app but apparently android does not allow you to open and install
         //aplication with existing package from there. So for me, alternative solution is Download directory in external storage. If there is better
@@ -400,7 +402,7 @@ public class MyUpdateService extends IntentService {
 
     private void installApkWithoutUninstall(String filename) {
         File file = new File(filename);
-        if(file.exists()){
+        if (file.exists()) {
             try {
                 Log.d("#installApk", "start install");
                 final String command = "pm install -r " + file.getAbsolutePath();
@@ -414,7 +416,7 @@ public class MyUpdateService extends IntentService {
 
     private void installApk(String filename) {
         File file = new File(filename);
-        if(file.exists()){
+        if (file.exists()) {
             try {
                 Log.d("#installApk", "start uninstall");
                 final String commandUninstall = "pm uninstall com.redbox.locker";
@@ -430,29 +432,29 @@ public class MyUpdateService extends IntentService {
         }
     }
 
-    private void startApp(){
+    private void startApp() {
         Intent launchIntent = getPackageManager().getLaunchIntentForPackage("com.redbox.locker");
         if (launchIntent != null) {
             startActivity(launchIntent);//null pointer check in case package name was not found
         }
     }
 
-    private void startSelf(){
-        Log.d("START","aaaa");
+    private void startSelf() {
+        Log.d("START", "aaaa");
         Intent launchIntent = getPackageManager().getLaunchIntentForPackage("com.redboxsa.controllerapp");
         if (launchIntent != null) {
-            Log.d("START","bbb");
+            Log.d("START", "bbb");
             startActivity(launchIntent);//null pointer check in case package name was not found
         }
     }
 
-    private void stopApp(){
+    private void stopApp() {
         try {
-            Log.d("#stopApp","start");
+            Log.d("#stopApp", "start");
             final String command = "am force-stop com.redbox.locker";
             Process proc = Runtime.getRuntime().exec(command);
             proc.waitFor();
-            Log.d("#stopApp","done");
+            Log.d("#stopApp", "done");
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -462,8 +464,7 @@ public class MyUpdateService extends IntentService {
         }
     }
 
-    private void scheduleNextUpdate()
-    {
+    private void scheduleNextUpdate() {
         Intent intent = new Intent(this, this.getClass());
         PendingIntent pendingIntent =
                 PendingIntent.getService(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
@@ -472,7 +473,7 @@ public class MyUpdateService extends IntentService {
 
         long currentTimeMillis = System.currentTimeMillis();
         long nextUpdateTimeMillis = currentTimeMillis + 30 * DateUtils.MINUTE_IN_MILLIS;
-        Log.d("Schedule next update", nextUpdateTimeMillis+"");
+        Log.d("Schedule next update", nextUpdateTimeMillis + "");
 
         AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
         //Log.d("next fire", nextUpdateTimeMillis+ "");
