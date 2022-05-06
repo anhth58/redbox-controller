@@ -1,6 +1,7 @@
 package com.redboxsa.controller.activities;
 
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
@@ -9,6 +10,7 @@ import android.view.View;
 import android.widget.Button;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import com.github.nkzawa.socketio.client.Socket;
@@ -87,6 +89,40 @@ public class MainActivity extends AppCompatActivity {
 //        intent.addCategory(Intent.CATEGORY_HOME);
 //        this.startActivity(intent);
         startApp();
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        checkPermission();
+    }
+
+    String[] PERMISSIONS = {
+//            android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
+//            android.Manifest.permission.ACCESS_FINE_LOCATION,
+//            android.Manifest.permission.ACCESS_COARSE_LOCATION,
+            android.Manifest.permission.READ_PHONE_STATE,
+//            android.Manifest.permission.BLUETOOTH_ADMIN,
+//            android.Manifest.permission.BLUETOOTH,
+//            android.Manifest.permission.CAMERA
+    };
+    int PERMISSION_ALL = 100;
+
+    protected void checkPermission() {
+        if (!hasPermissions(PERMISSIONS)) {
+            ActivityCompat.requestPermissions(this, PERMISSIONS, PERMISSION_ALL);
+        }
+    }
+
+    private boolean hasPermissions(String... permissions) {
+        if (permissions != null) {
+            for (String permission : permissions) {
+                if (ActivityCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     private void startApp(){

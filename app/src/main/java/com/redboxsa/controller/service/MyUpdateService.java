@@ -276,6 +276,17 @@ public class MyUpdateService extends IntentService {
         //aplication with existing package from there. So for me, alternative solution is Download directory in external storage. If there is better
         //solution, please inform us in comment
         String destination = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS) + "/";
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            File[] externalCacheDirs = this.getExternalCacheDirs();
+            for (File file : externalCacheDirs) {
+                if (Environment.isExternalStorageRemovable(file)) {
+                    // Path is in format /storage.../Android....
+                    // Get everything before /Android
+                    destination = file.getPath().split("/Android")[0] + "/";
+                    break;
+                }
+            }
+        }
         String fileName = System.currentTimeMillis() + "LockerApp.apk";
         destination += fileName;
         final Uri uri = Uri.parse("file://" + destination);
@@ -330,6 +341,17 @@ public class MyUpdateService extends IntentService {
         //aplication with existing package from there. So for me, alternative solution is Download directory in external storage. If there is better
         //solution, please inform us in comment
         String destination = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS) + "/";
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            File[] externalCacheDirs = this.getExternalCacheDirs();
+            for (File file : externalCacheDirs) {
+                if (Environment.isExternalStorageRemovable(file)) {
+                    // Path is in format /storage.../Android....
+                    // Get everything before /Android
+                    destination = file.getPath().split("/Android")[0] + "/";
+                    break;
+                }
+            }
+        }
         String fileName = System.currentTimeMillis() + "ControllerApp.apk";
         destination += fileName;
         final Uri uri = Uri.parse("file://" + destination);
@@ -378,23 +400,27 @@ public class MyUpdateService extends IntentService {
         registerReceiver(onComplete, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
     }
 
-    public boolean uninstallPackage(Context context, String packageName) {
-        PackageManager packageManger = context.getPackageManager();
+    public boolean uninstallPackage() {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-            PackageInstaller packageInstaller = packageManger.getPackageInstaller();
-            PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(
-                    PackageInstaller.SessionParams.MODE_FULL_INSTALL);
-            params.setAppPackageName(packageName);
-            int sessionId = 0;
+            String appPackage = "com.redbox.locker";
+            Intent intent = new Intent(getApplicationContext(),
+                    getApplicationContext().getClass()); //getActivity() is undefined!
+            PendingIntent sender = PendingIntent.getActivity(this, 0, intent, 0);
+            PackageInstaller mPackageInstaller =
+                    this.getPackageManager().getPackageInstaller();
+            mPackageInstaller.uninstall(appPackage, sender.getIntentSender());
+        } else {
+            final String commandUninstall = "pm uninstall com.redbox.locker";
+            Process procUninstall = null;
             try {
-                sessionId = packageInstaller.createSession(params);
+                procUninstall = Runtime.getRuntime().exec(commandUninstall);
+                procUninstall.waitFor();
             } catch (IOException e) {
                 e.printStackTrace();
-                return false;
+            } catch (InterruptedException e) {
+                e.printStackTrace();
             }
-            packageInstaller.uninstall(packageName, PendingIntent.getBroadcast(context, sessionId,
-                    new Intent("android.intent.action.MAIN"), 0).getIntentSender());
-            return true;
+
         }
         System.err.println("old sdk");
         return false;
@@ -419,9 +445,7 @@ public class MyUpdateService extends IntentService {
         if (file.exists()) {
             try {
                 Log.d("#installApk", "start uninstall");
-                final String commandUninstall = "pm uninstall com.redbox.locker";
-                Process procUninstall = Runtime.getRuntime().exec(commandUninstall);
-                procUninstall.waitFor();
+                uninstallPackage();
                 Log.d("#installApk", "start install");
                 final String command = "pm install -r " + file.getAbsolutePath();
                 Process proc = Runtime.getRuntime().exec(command);
