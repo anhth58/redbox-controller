@@ -1,26 +1,26 @@
 package com.redboxsa.controller.activities;
 
+import android.app.AlarmManager;
+import android.app.PendingIntent;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
 import android.view.View;
 import android.widget.Button;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
 
-import com.github.nkzawa.socketio.client.Socket;
 import com.redboxsa.controller.R;
-import com.redboxsa.controller.common.Utils;
 import com.redboxsa.controller.service.MyUpdateService;
 
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.util.Date;
 
 
@@ -37,8 +37,20 @@ public class MainActivity extends AppCompatActivity {
 //        } catch (IOException e) {
 //            e.printStackTrace();
 //        }
-        startService();
-        startApp();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        stopService();
+        new Handler().postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                startService();
+                startApp();
+            }
+        },10000);
+
     }
 
     private void takeScreenshot() {
@@ -78,11 +90,21 @@ public class MainActivity extends AppCompatActivity {
         startActivity(intent);
     }
 
+    public void stopService() {
+        Intent intent = new Intent(MainActivity.this, MyUpdateService.class);
+        PendingIntent pendingIntent =
+                PendingIntent.getService(MainActivity.this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+
+        AlarmManager alarmManager = (AlarmManager) MainActivity.this.getSystemService(Context.ALARM_SERVICE);
+        alarmManager.cancel(pendingIntent);
+    }
+
     public void startService() {
         // Construct our Intent specifying the Service
-        Intent i = new Intent(this, MyUpdateService.class);
+        Intent i = new Intent(MainActivity.this, MyUpdateService.class);
         // Start the service
-        ContextCompat.startForegroundService(MainActivity.this, i);
+        MainActivity.this.startService(i);
+//        ContextCompat.startForegroundService(MainActivity.this, i);
 
 //        Intent intent = new Intent();
 //        intent.setAction(Intent.ACTION_MAIN);
@@ -125,7 +147,7 @@ public class MainActivity extends AppCompatActivity {
         return true;
     }
 
-    private void startApp(){
+    private void startApp() {
         Intent launchIntent = getPackageManager().getLaunchIntentForPackage("com.redbox.locker");
         if (launchIntent != null) {
             startActivity(launchIntent);//null pointer check in case package name was not found

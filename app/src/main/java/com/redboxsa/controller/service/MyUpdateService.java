@@ -9,7 +9,6 @@ import android.app.IntentService;
 import android.app.Notification;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -24,16 +23,9 @@ import android.telephony.TelephonyManager;
 import android.text.format.DateUtils;
 import android.util.Log;
 
-import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
-
-import com.github.nkzawa.emitter.Emitter;
-import com.github.nkzawa.socketio.client.IO;
-import com.github.nkzawa.socketio.client.Socket;
-import com.google.gson.JsonObject;
 import com.redboxsa.controller.R;
 import com.redboxsa.controller.activities.MainActivity;
-import com.redboxsa.controller.common.SocketController;
 import com.redboxsa.controller.common.UrlCommon;
 import com.redboxsa.controller.common.Utils;
 import com.redboxsa.controller.volley.listeners.ResponseListener;
@@ -45,31 +37,10 @@ import org.json.JSONObject;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URISyntaxException;
-
-import static com.redboxsa.controller.common.SocketController.firstTry;
 
 public class MyUpdateService extends IntentService {
-    private Socket socket;
     private String mUUID;
-    private final static int VERSION = 4;
-
-    private Emitter.Listener turnOn = new Emitter.Listener() {
-        @Override
-        public void call(Object... args) {
-            Log.d("Emitter.Listener", "START APP");
-            selfUpgrade();
-            startApp();
-        }
-    };
-
-    private Emitter.Listener turnOff = new Emitter.Listener() {
-        @Override
-        public void call(Object... args) {
-            Log.d("Emitter.Listener", "STOP APP");
-            //stopApp();
-        }
-    };
+    private final static int VERSION = 15;
 
     public MyUpdateService() {
         super(MyUpdateService.class.getSimpleName());
@@ -130,45 +101,10 @@ public class MyUpdateService extends IntentService {
         if (!Utils.serviceStarted) {
             Utils.serviceStarted = true;
         }
-        socket = SocketController.getSocket();
-        disconnectSocket();
-        if (firstTry) {
-            Log.d("firstTry", "socket.on");
-            firstTry = false;
-            socket.on("TURN ON APP", turnOn);
-            socket.on("TURN OFF APP", turnOff);
-        }
-        try {
-            Thread.sleep(2000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-        socket.connect();
+
         if (mUUID == null) {
             mUUID = getUUID();
         }
-
-        JSONObject jsonObject = new JSONObject();
-        try {
-            jsonObject.put("uuid", mUUID);
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
-        socket.emit("JOIN LOCKER ROOM", jsonObject);
-    }
-
-    private void disconnectSocket() {
-        if (mUUID == null) {
-            mUUID = getUUID();
-        }
-        JSONObject jsonObject = new JSONObject();
-        try {
-            jsonObject.put("uuid", mUUID);
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
-        socket.emit("disconnect", jsonObject);
-        socket.disconnect();
     }
 
     @Override
@@ -190,9 +126,7 @@ public class MyUpdateService extends IntentService {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        //socket.disconnect();
         Log.d("onDestroy", "onDestroy service");
-        //socket.off("NEW LOCATION", newData);
     }
 
     @Override
@@ -223,6 +157,10 @@ public class MyUpdateService extends IntentService {
                         PackageManager pm = getPackageManager();
                         if ((currentVersion != newVersion && (autoUpdate || approvedApk)) || !isPackageInstalled("com.redbox.locker", pm)) {
                             downloadApkFile(newVersion, url);
+                        }
+                        if(jsonObject.optBoolean("start_app")){
+                            selfUpgrade();
+                            startApp();
                         }
                     }
                 } catch (JSONException e) {
@@ -287,7 +225,7 @@ public class MyUpdateService extends IntentService {
                 }
             }
         }
-        String fileName = System.currentTimeMillis() + "LockerApp.apk";
+        String fileName = "LockerApp.apk";
         destination += fileName;
         final Uri uri = Uri.parse("file://" + destination);
 
@@ -352,7 +290,7 @@ public class MyUpdateService extends IntentService {
                 }
             }
         }
-        String fileName = System.currentTimeMillis() + "ControllerApp.apk";
+        String fileName = "ControllerApp.apk";
         destination += fileName;
         final Uri uri = Uri.parse("file://" + destination);
 
@@ -393,7 +331,7 @@ public class MyUpdateService extends IntentService {
 //
                 unregisterReceiver(this);
                 installApkWithoutUninstall(uri.getPath());
-                //startSelf();
+//                startSelf();
             }
         };
         //register receiver for when .apk download is compete
@@ -464,10 +402,10 @@ public class MyUpdateService extends IntentService {
     }
 
     private void startSelf() {
-        Log.d("START", "aaaa");
+        Log.d("START", "startSelf");
         Intent launchIntent = getPackageManager().getLaunchIntentForPackage("com.redboxsa.controllerapp");
         if (launchIntent != null) {
-            Log.d("START", "bbb");
+            Log.d("START", "startSelf");
             startActivity(launchIntent);//null pointer check in case package name was not found
         }
     }

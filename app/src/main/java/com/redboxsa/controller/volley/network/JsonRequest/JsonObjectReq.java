@@ -25,14 +25,10 @@ public class JsonObjectReq extends JsonRequest {
 
     private static HashMap<String, String> getHeaderData(Context context) {
         HashMap<String, String> header = new HashMap<>();
-        header.put("Accept", "application/json");
         header.put("timezone", TimeZone.getDefault().toString());
-//        header.put("authorization", AppSharedPreference.getAuthorization(context));
         header.put("accept", "application/json");
-//        header.put("accept-encoding", "gzip, deflate");
         header.put("accept-language", "en-US,en;q=0.8");
         header.put("content-type", "application/json");
-        header.put("user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.77 Safari/537.36");
 
         return header;
     }
