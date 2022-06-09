@@ -40,7 +40,7 @@ import java.io.IOException;
 
 public class MyUpdateService extends IntentService {
     private String mUUID;
-    private final static int VERSION = 4;
+    private final static int VERSION = 5;
 
     public MyUpdateService() {
         super(MyUpdateService.class.getSimpleName());
