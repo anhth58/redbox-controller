@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -15,6 +16,7 @@ import android.widget.Button;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import com.redboxsa.controller.R;
 import com.redboxsa.controller.service.MyUpdateService;
@@ -103,7 +105,12 @@ public class MainActivity extends AppCompatActivity {
         // Construct our Intent specifying the Service
         Intent i = new Intent(MainActivity.this, MyUpdateService.class);
         // Start the service
-        MainActivity.this.startService(i);
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O){
+            ContextCompat.startForegroundService(this, i);
+        }else {
+            MainActivity.this.startService(i);
+        }
+
 //        ContextCompat.startForegroundService(MainActivity.this, i);
 
 //        Intent intent = new Intent();

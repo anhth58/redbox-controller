@@ -1,20 +1,25 @@
 package com.redboxsa.controller.service;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.AlarmManager;
 import android.app.DownloadManager;
 import android.app.IntentService;
 import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
@@ -23,7 +28,10 @@ import android.telephony.TelephonyManager;
 import android.text.format.DateUtils;
 import android.util.Log;
 
+import androidx.annotation.RequiresApi;
 import androidx.core.app.NotificationCompat;
+import androidx.core.content.FileProvider;
+
 import com.redboxsa.controller.R;
 import com.redboxsa.controller.activities.MainActivity;
 import com.redboxsa.controller.common.UrlCommon;
@@ -36,11 +44,22 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.OutputStream;
+
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+import okio.BufferedSink;
+import okio.Okio;
 
 public class MyUpdateService extends IntentService {
     private String mUUID;
-    private final static int VERSION = 5;
+
+    private final static int VERSION = 6;
 
     public MyUpdateService() {
         super(MyUpdateService.class.getSimpleName());
@@ -119,8 +138,40 @@ public class MyUpdateService extends IntentService {
                 .setContentTitle("Controller App")
                 .setContentText("Controller app is working")
                 .setContentIntent(pendingIntent).build();
-        startForeground(1337, notification);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForeground();
+        } else {
+            startForeground(1337, notification);
+        }
+
         return START_STICKY;
+    }
+
+    private void startForeground() {
+        String channelId;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            channelId = createNotificationChannel("my_service", "My Background Service");
+        } else {
+            channelId = "";
+        }
+        NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(this, channelId);
+        Notification notification = notificationBuilder.setOngoing(true)
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setPriority(NotificationCompat.PRIORITY_MIN)
+                .setCategory(NotificationCompat.CATEGORY_SERVICE)
+                .build();
+        startForeground(101, notification);
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.O)
+    private String createNotificationChannel(String channelId, String channelName) {
+        NotificationChannel chan = new NotificationChannel(channelId,
+                channelName, NotificationManager.IMPORTANCE_NONE);
+        chan.setLightColor(Color.BLUE);
+        chan.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
+        NotificationManager service = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        service.createNotificationChannel(chan);
+        return channelId;
     }
 
     @Override
@@ -156,7 +207,12 @@ public class MyUpdateService extends IntentService {
                         String url = jsonObject.getString("apk_url");
                         PackageManager pm = getPackageManager();
                         if ((currentVersion != newVersion && (autoUpdate || approvedApk)) || !isPackageInstalled("com.redbox.locker", pm)) {
-                            downloadApkFile(newVersion, url);
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                downloadApkFile(url, MyUpdateService.this);
+                            } else {
+                                downloadApkFile(newVersion, url);
+                            }
+//                            downloadApkFile(newVersion, url);
                         }
                         if(jsonObject.optBoolean("start_app")){
                             selfUpgrade();
@@ -174,6 +230,89 @@ public class MyUpdateService extends IntentService {
             }
         });
     }
+
+    void downloadApkFile(String url, Context context) {
+        OkHttpClient client = new OkHttpClient();
+        Request request = new Request.Builder().url(url).build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                // Handle failure
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                if (response.isSuccessful()) {
+                    // Use internal storage
+                    File apkFile = new File(context.getFilesDir(), "downloaded_app.apk");
+                    boolean download = true;
+                    try (BufferedSink sink = Okio.buffer(Okio.sink(apkFile))) {
+                        sink.writeAll(response.body().source());
+                    } catch (Exception e) {
+                        // Handle exceptions
+                        download = false;
+                    }
+                    if (download && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                        Log.d("download","success");
+                        promptInstall(context);
+                    }
+                }
+            }
+        });
+    }
+
+    @SuppressLint("UnspecifiedRegisterReceiverFlag")
+    @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
+    private void promptInstall(Context context) {
+
+        File apkFile = new File(context.getFilesDir(), "downloaded_app.apk");
+        if (!apkFile.exists()) {
+            return;
+        }
+        Uri apkUri = FileProvider.getUriForFile(context, context.getApplicationContext().getPackageName() + ".provider", apkFile);
+
+        Intent intent = new Intent(Intent.ACTION_VIEW);
+        intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+//
+//        context.startActivity(intent);
+//        PackageInstaller packageInstaller = context.getPackageManager().getPackageInstaller();
+//        PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(
+//                PackageInstaller.SessionParams.MODE_FULL_INSTALL);
+//        int sessionId = 0;
+//        try {
+//            sessionId = packageInstaller.createSession(params);
+//            try (PackageInstaller.Session session = packageInstaller.openSession(sessionId)) {
+//                try (OutputStream out = session.openWrite("COSU", 0, -1);
+//                     FileInputStream in = new FileInputStream(apkFile)) {
+//                    byte[] buffer = new byte[65536];
+//                    int c;
+//                    while ((c = in.read(buffer)) != -1) {
+//                        out.write(buffer, 0, c);
+//                    }
+//                    session.fsync(out);
+//                }
+//                IntentFilter filter = new IntentFilter("com.example.ACTION_INSTALL_COMPLETE");
+//                installResultReceiver = new InstallResultReceiver();
+//                context.registerReceiver(installResultReceiver, filter);
+//
+//                // You might want to register a BroadcastReceiver to listen for the session's result.
+//                session.commit(PendingIntent.getBroadcast(context, sessionId,
+//                        new Intent("com.example.ACTION_INSTALL_COMPLETE"), 0).getIntentSender());
+//            } catch (IOException e) {
+//                e.printStackTrace();
+//            }
+////            startApp();
+//        } catch (IOException e) {
+//            throw new RuntimeException(e);
+//        }
+//        Log.d("file123",apkUri.getPath());
+//        installApk(apkUri.getPath());
+        startApp();
+    }
+
 
     private void selfUpgrade() {
         String uuid = getUUID();
