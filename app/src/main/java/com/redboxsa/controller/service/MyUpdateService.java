@@ -32,6 +32,7 @@ import androidx.annotation.RequiresApi;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.FileProvider;
 
+import com.redboxsa.controller.DeviceOwnerReceiver;
 import com.redboxsa.controller.R;
 import com.redboxsa.controller.activities.MainActivity;
 import com.redboxsa.controller.common.UrlCommon;
@@ -208,7 +209,8 @@ public class MyUpdateService extends IntentService {
                         PackageManager pm = getPackageManager();
                         if ((currentVersion != newVersion && (autoUpdate || approvedApk)) || !isPackageInstalled("com.redbox.locker", pm)) {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                downloadApkFile(url, MyUpdateService.this);
+//                                downloadApkFile(url, MyUpdateService.this);
+                                requestDeviceAdmin(MyUpdateService.this,url);
                             } else {
                                 downloadApkFile(newVersion, url);
                             }
@@ -229,6 +231,12 @@ public class MyUpdateService extends IntentService {
 
             }
         });
+    }
+
+    public void requestDeviceAdmin(Context context,String url) {
+        Intent intent = new Intent(url);
+        intent.setComponent(new ComponentName(context.getApplicationContext(), DeviceOwnerReceiver.class));
+        context.sendBroadcast(intent);
     }
 
     void downloadApkFile(String url, Context context) {

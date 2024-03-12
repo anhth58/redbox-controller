@@ -4,6 +4,7 @@
     package="com.redboxsa.controller">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
@@ -26,6 +27,7 @@
 
     <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -34,6 +36,7 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
         tools:ignore="GoogleAppIndexingWarning">
+
         <uses-library android:name="org.apache.http.legacy" android:required="false"/>
         <activity android:name=".activities.MainActivity">
             <intent-filter>
@@ -66,6 +69,25 @@
 <!--                android:resource="@xml/file_paths" />-->
 <!--        </provider>-->
 
+        <receiver
+            android:name=".DeviceOwnerReceiver"
+            android:label="Device Owner Receiver"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+                <action android:name="android.app.action.DEVICE_ADMIN_DISABLE_REQUESTED" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin_receiver" />
+        </receiver>
+
+        <receiver android:name=".PackageInstallerReceiver">
+            <intent-filter>
+                <action android:name="ACTION_SESSION_COMMITTED" />
+            </intent-filter>
+        </receiver>
     </application>
 
     <queries>
@@ -77,4 +99,5 @@
             <data android:scheme="https" />
         </intent>
     </queries>
+
 </manifest>

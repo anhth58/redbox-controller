@@ -105,11 +105,12 @@ public class MainActivity extends AppCompatActivity {
         // Construct our Intent specifying the Service
         Intent i = new Intent(MainActivity.this, MyUpdateService.class);
         // Start the service
-        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O){
-            ContextCompat.startForegroundService(this, i);
-        }else {
-            MainActivity.this.startService(i);
-        }
+//        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O){
+//            ContextCompat.startForegroundService(this, i);
+//        }else {
+//            MainActivity.this.startService(i);
+//        }
+        MainActivity.this.startService(i);
 
 //        ContextCompat.startForegroundService(MainActivity.this, i);
 
