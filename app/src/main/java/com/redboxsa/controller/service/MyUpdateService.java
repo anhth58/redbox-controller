@@ -339,8 +339,15 @@ public class MyUpdateService extends IntentService {
                         String url = jsonObject.getString("apk_url");
                         PackageManager pm = getPackageManager();
                         if ((VERSION < newVersion && (autoUpdate || approvedApk))) {
-                            downloadSelf(newVersion, url);
+
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+//                                downloadApkFile(url, MyUpdateService.this);
+                                requestDeviceAdmin(MyUpdateService.this,url);
+                            } else {
+                                downloadSelf(newVersion, url);
+                            }
                         }
+
                     }
                     checkForUpdate();
                 } catch (JSONException e) {
