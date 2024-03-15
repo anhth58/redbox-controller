@@ -50,30 +50,40 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         stopService();
-        handler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                startService();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            handler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    startService();
+                }
+            },10000);
+            handler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    startApp();
+                }
+            },60000);
+
+            ComponentName adminComponent = new ComponentName(MainActivity.this, DeviceOwnerReceiver.class);
+
+            DevicePolicyManager devicePolicyManager = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
+
+            if (devicePolicyManager != null && devicePolicyManager.isDeviceOwnerApp(MainActivity.this.getPackageName())) {
+                // Your app is already a device owner.
+            } else {
+                Intent intent = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
+                intent.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent);
+                intent.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Your explanation message");
+                startActivityForResult(intent, 1);
             }
-        },10000);
-        handler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                startApp();
-            }
-        },60000);
-
-        ComponentName adminComponent = new ComponentName(MainActivity.this, DeviceOwnerReceiver.class);
-
-        DevicePolicyManager devicePolicyManager = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
-
-        if (devicePolicyManager != null && devicePolicyManager.isDeviceOwnerApp(MainActivity.this.getPackageName())) {
-            // Your app is already a device owner.
-        } else {
-            Intent intent = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
-            intent.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent);
-            intent.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Your explanation message");
-            startActivityForResult(intent, 1);
+        }else {
+            handler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    startService();
+                    startApp();
+                }
+            },10000);
         }
     }
 
