@@ -1,7 +1,10 @@
 package com.redboxsa.controller.activities;
 
+import android.app.Activity;
 import android.app.AlarmManager;
 import android.app.PendingIntent;
+import android.app.admin.DevicePolicyManager;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -18,6 +21,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import com.redboxsa.controller.DeviceOwnerReceiver;
 import com.redboxsa.controller.R;
 import com.redboxsa.controller.service.MyUpdateService;
 
@@ -28,6 +32,7 @@ import java.util.Date;
 
 public class MainActivity extends AppCompatActivity {
     Button btnTakeScreenShot;
+    Handler handler = new Handler();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,16 +50,54 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         stopService();
-        new Handler().postDelayed(new Runnable() {
+        handler.postDelayed(new Runnable() {
             @Override
             public void run() {
                 startService();
-                startApp();
             }
         },10000);
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                startApp();
+            }
+        },60000);
 
+        ComponentName adminComponent = new ComponentName(MainActivity.this, DeviceOwnerReceiver.class);
+
+        DevicePolicyManager devicePolicyManager = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
+
+        if (devicePolicyManager != null && devicePolicyManager.isDeviceOwnerApp(MainActivity.this.getPackageName())) {
+            // Your app is already a device owner.
+        } else {
+            Intent intent = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
+            intent.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent);
+            intent.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Your explanation message");
+            startActivityForResult(intent, 1);
+        }
     }
 
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if(handler != null){
+            handler.removeCallbacksAndMessages(null);
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == 1) {
+            if (resultCode == Activity.RESULT_OK) {
+                // Device admin is enabled
+                // You can proceed to configure the app as a device owner
+            } else {
+                // Device admin was not enabled
+                // Handle accordingly
+            }
+        }
+    }
     private void takeScreenshot() {
         Date now = new Date();
         android.text.format.DateFormat.format("yyyy-MM-dd_hh:mm:ss", now);
@@ -118,7 +161,7 @@ public class MainActivity extends AppCompatActivity {
 //        intent.setAction(Intent.ACTION_MAIN);
 //        intent.addCategory(Intent.CATEGORY_HOME);
 //        this.startActivity(intent);
-        startApp();
+//        startApp();
     }
 
     @Override
