@@ -60,7 +60,7 @@ import okio.Okio;
 public class MyUpdateService extends IntentService {
     private String mUUID;
 
-    private final static int VERSION = 6;
+    private final static int VERSION = 7;
 
     public MyUpdateService() {
         super(MyUpdateService.class.getSimpleName());

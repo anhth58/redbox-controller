@@ -26,7 +26,7 @@ public class PackageInstallerReceiver extends BroadcastReceiver {
 //            }
 //        }
         Log.d("install","done");
-        startApp(context);
+//        startApp(context);
     }
 
     private void startApp(Context context) {

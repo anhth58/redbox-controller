@@ -3,7 +3,7 @@ package com.redboxsa.controller.common;
 public class UrlCommon {
 
 //    public static final String URL = "https://dev.redboxsa.com";
-    //public static final String URL = "https://stage-sol.redboxsa.com";
+//    public static final String URL = "https://stage-sol.redboxsa.com";
     public static final String URL = "https://app.redboxsa.com";
 
     public static final String UPDATE_LOCKER_STATUS = URL + "/api/update-locker-status";
