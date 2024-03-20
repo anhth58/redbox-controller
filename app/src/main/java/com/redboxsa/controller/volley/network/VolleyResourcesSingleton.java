@@ -6,6 +6,7 @@ import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.toolbox.Volley;
 import com.redboxsa.controller.volley.CustomHurlStack;
+import com.redboxsa.controller.volley.VolleyToolboxExtension;
 
 public class VolleyResourcesSingleton {
     private static VolleyResourcesSingleton mInstance;
@@ -29,7 +30,7 @@ public class VolleyResourcesSingleton {
         if (mRequestQueue == null) {
             // getApplicationContext() is key, it keeps you from leaking the
             // Activity or BroadcastReceiver if someone passes one in.
-            mRequestQueue = Volley.newRequestQueue(mCtx.getApplicationContext());
+            mRequestQueue = VolleyToolboxExtension.newRequestQueue(mCtx.getApplicationContext());
         }
         return mRequestQueue;
     }
@@ -38,7 +39,7 @@ public class VolleyResourcesSingleton {
         if (mRequestQueueDelete == null) {
             // getApplicationContext() is key, it keeps you from leaking the
             // Activity or BroadcastReceiver if someone passes one in.
-            mRequestQueueDelete = Volley.newRequestQueue(mCtx.getApplicationContext(), new CustomHurlStack());
+            mRequestQueueDelete = VolleyToolboxExtension.newRequestQueue(mCtx.getApplicationContext(), new CustomHurlStack());
         }
         return mRequestQueueDelete;
     }

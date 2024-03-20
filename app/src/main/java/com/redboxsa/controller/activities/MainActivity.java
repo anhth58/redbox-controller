@@ -62,20 +62,20 @@ public class MainActivity extends AppCompatActivity {
                 public void run() {
                     startApp();
                 }
-            },60000);
+            },30000);
 
-            ComponentName adminComponent = new ComponentName(MainActivity.this, DeviceOwnerReceiver.class);
-
-            DevicePolicyManager devicePolicyManager = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
-
-            if (devicePolicyManager != null && devicePolicyManager.isDeviceOwnerApp(MainActivity.this.getPackageName())) {
-                // Your app is already a device owner.
-            } else {
-                Intent intent = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
-                intent.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent);
-                intent.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Your explanation message");
-                startActivityForResult(intent, 1);
-            }
+//            ComponentName adminComponent = new ComponentName(MainActivity.this, DeviceOwnerReceiver.class);
+//
+//            DevicePolicyManager devicePolicyManager = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
+//
+//            if (devicePolicyManager != null && devicePolicyManager.isDeviceOwnerApp(MainActivity.this.getPackageName())) {
+//                // Your app is already a device owner.
+//            } else {
+//                Intent intent = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
+//                intent.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent);
+//                intent.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Your explanation message");
+//                startActivityForResult(intent, 1);
+//            }
         }else {
             handler.postDelayed(new Runnable() {
                 @Override
