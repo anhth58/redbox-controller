@@ -34,7 +34,7 @@ public class CustomHurlStack implements HttpStack {
     private final UrlRewriter mUrlRewriter;
     private final SSLSocketFactory mSslSocketFactory;
 
-    public CustomHurlStack() {
+    public  CustomHurlStack() {
         this(null);
     }
 
@@ -151,11 +151,16 @@ public class CustomHurlStack implements HttpStack {
             throws IOException, AuthFailureError {
         byte[] body = request.getBody();
         if (body != null) {
-            connection.setDoOutput(true);
-            connection.addRequestProperty(HEADER_CONTENT_TYPE, request.getBodyContentType());
-            DataOutputStream out = new DataOutputStream(connection.getOutputStream());
-            out.write(body);
-            out.close();
+            try {
+                connection.setDoOutput(true);
+                connection.addRequestProperty(HEADER_CONTENT_TYPE, request.getBodyContentType());
+                DataOutputStream out = new DataOutputStream(connection.getOutputStream());
+                out.write(body);
+                out.close();
+            }catch (Exception e){
+
+            }
+
         }
     }
 
