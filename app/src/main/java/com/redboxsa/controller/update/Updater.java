@@ -85,30 +85,65 @@ public final class Updater {
     private static void runOnce(Context context) throws InterruptedException {
         File savedLocker = new File(context.getFilesDir(), "locker.apk");
         if (!isInstalled(context, LOCKER_PACKAGE) && savedLocker.exists()) {
-            Log.w(TAG, "Locker missing, reinstalling the last locker that installed fine");
+            EventLog.add(context, "LOCKER_MISSING", "reinstalling the last locker that installed fine");
             reinstallLocker(context, savedLocker);
         }
 
         String uuid = deviceId(context);
         Log.i(TAG, "Check: controller " + BuildConfig.VERSION_CODE + ", uuid " + uuid);
+        String error = null;
         // Each step catches everything: a failure in one never skips the locker update.
         // New features go after updateLocker(), in their own try/catch.
         try {
             updateSelf(context, uuid);
         } catch (Exception e) {
             Log.e(TAG, "Controller update check failed", e);
+            error = "controller: " + e;
         }
         try {
             updateLocker(context, uuid, savedLocker);
         } catch (Exception e) {
             Log.e(TAG, "Locker update check failed", e);
+            error = (error == null ? "" : error + "; ") + "locker: " + e;
+        }
+        try {
+            TimeSync.run(context);
+        } catch (Exception e) {
+            Log.e(TAG, "Time sync failed", e);
+        }
+        State.setLastCheck(context, error);
+        try {
+            EventLog.upload(context, uuid, State.token(context));
+        } catch (Exception e) {
+            Log.w(TAG, "Event log upload failed, kept for next cycle: " + e);
         }
     }
 
+    /**
+     * Token API first (locker token); the old token-less API when the locker has not handed over a token yet,
+     * or the token API fails or is not deployed yet.
+     */
+    private static JSONObject versionApi(Context context, String tokenUrl, String oldUrl, String query) throws IOException, JSONException {
+        String token = State.token(context);
+        if (token != null) {
+            try {
+                JSONObject response = Http.getJson(context, tokenUrl + query, token);
+                if (response.optBoolean("state")) return response;
+                Log.w(TAG, "Token API answered state=false, using the old API");
+            } catch (IOException | JSONException e) {
+                Log.w(TAG, "Token API failed, using the old API: " + e);
+            }
+        }
+        return Http.getJson(context, oldUrl + query, null);
+    }
+
     private static void updateSelf(Context context, String uuid) throws IOException, JSONException, InterruptedException {
-        JSONObject data = data(Http.getJson(context, UrlCommon.CHECK_FOR_SELF_UPDATE
-                + "?current_version=" + BuildConfig.VERSION_CODE + "&uuid=" + Uri.encode(uuid)));
-        if (data == null || data.optInt("new_version") <= BuildConfig.VERSION_CODE || !approved(data)) return;
+        JSONObject data = data(versionApi(context, UrlCommon.CONTROLLER_VERSION, UrlCommon.CHECK_FOR_SELF_UPDATE,
+                "?current_version=" + BuildConfig.VERSION_CODE + "&uuid=" + Uri.encode(uuid)));
+        if (data == null) return;
+        State.setControllerLatest(context, data.optInt("new_version"));
+        State.setServerTimeZone(context, data.optString("timezone", null));
+        if (data.optInt("new_version") <= BuildConfig.VERSION_CODE || !approved(data)) return;
 
         File apk = new File(context.getFilesDir(), "controller.apk");
         try {
@@ -116,35 +151,50 @@ public final class Updater {
             PackageInfo info = verify(context, apk, context.getPackageName());
             // Guards against an endless download/install loop when the server number and the apk disagree.
             if (info.versionCode <= BuildConfig.VERSION_CODE) {
-                Log.w(TAG, "Server offers controller " + data.optInt("new_version") + " but the apk is versionCode " + info.versionCode + ", skipped");
+                EventLog.add(context, "CONTROLLER_UPDATE_SKIPPED", "server offers " + data.optInt("new_version")
+                        + " but the apk is versionCode " + info.versionCode);
                 return;
             }
-            Log.i(TAG, "Updating controller " + BuildConfig.VERSION_CODE + " -> " + info.versionCode);
+            EventLog.add(context, "CONTROLLER_UPDATE", BuildConfig.VERSION_CODE + " -> " + info.versionCode);
             // On success Android kills this process here; AutoStartReceiver (MY_PACKAGE_REPLACED) restarts the job.
             Installer.install(context, apk);
+            EventLog.add(context, "CONTROLLER_UPDATE_FAILED", "install refused, see INSTALL_FAILED");
+        } catch (IOException e) {
+            EventLog.add(context, "CONTROLLER_UPDATE_FAILED", String.valueOf(e.getMessage()));
+            throw e;
         } finally {
             apk.delete();
         }
     }
 
+    @SuppressWarnings("deprecation")
     private static void updateLocker(Context context, String uuid, File savedLocker) throws IOException, JSONException, InterruptedException {
-        JSONObject data = data(Http.getJson(context, UrlCommon.CHECK_FOR_UPDATE + "?uuid=" + Uri.encode(uuid)));
+        JSONObject data = data(versionApi(context, UrlCommon.LOCKER_VERSION, UrlCommon.CHECK_FOR_UPDATE,
+                "?uuid=" + Uri.encode(uuid)));
         if (data == null) return;
+        State.setServerTimeZone(context, data.optString("timezone", null));
 
-        boolean installed = isInstalled(context, LOCKER_PACKAGE);
+        PackageInfo installed = installedInfo(context);
         boolean newVersion = data.optInt("current_version") != data.optInt("new_version") && approved(data);
-        if (!installed || newVersion) {
+        if (installed == null || newVersion) {
             File download = new File(context.getFilesDir(), "locker-download.apk");
             try {
                 Http.download(context, data.getString("apk_url"), download);
                 PackageInfo apk = verify(context, download, LOCKER_PACKAGE);
-                if (installed && sameAsInstalled(context, download)) {
+                if (installed != null && sameAsInstalled(context, download)) {
                     // Server still reports an old version: reinstalling would only kill the running locker.
-                    Log.i(TAG, "Locker apk already installed, skipped");
-                } else if (installLocker(context, download, apk) && !download.renameTo(savedLocker)) {
-                    // Only an apk that installed fine on this device becomes the recovery copy.
-                    Log.w(TAG, "Cannot save " + savedLocker);
+                    EventLog.add(context, "LOCKER_UPDATE_SKIPPED", "apk " + apk.versionName + " is already installed");
+                } else {
+                    EventLog.add(context, "LOCKER_UPDATE", (installed == null ? "not installed" : versionOf(installed))
+                            + " -> " + versionOf(apk));
+                    if (installLocker(context, download, apk) && !download.renameTo(savedLocker)) {
+                        // Only an apk that installed fine on this device becomes the recovery copy.
+                        Log.w(TAG, "Cannot save " + savedLocker);
+                    }
                 }
+            } catch (IOException e) {
+                EventLog.add(context, "LOCKER_UPDATE_FAILED", String.valueOf(e.getMessage()));
+                throw e;
             } finally {
                 download.delete();
             }
@@ -152,13 +202,18 @@ public final class Updater {
         if (data.optBoolean("start_app")) launchLocker(context);
     }
 
+    @SuppressWarnings("deprecation")
+    private static String versionOf(PackageInfo info) {
+        return info.versionName + " (" + info.versionCode + ")";
+    }
+
     /** Recovery path: the locker is missing, so a plain install is all it takes. */
     private static void reinstallLocker(Context context, File apk) throws InterruptedException {
         if (installWithRetries(context, apk)) {
-            Log.i(TAG, "Locker reinstalled");
+            EventLog.add(context, "LOCKER_REINSTALLED", "from the saved apk");
             launchLocker(context);
         } else {
-            Log.e(TAG, "Locker still missing; retrying from " + apk + " next cycle");
+            EventLog.add(context, "LOCKER_STILL_MISSING", "retrying from the saved apk next cycle");
         }
     }
 
@@ -174,20 +229,20 @@ public final class Updater {
             File backup = new File(context.getFilesDir(), "locker-backup.apk");
             try {
                 copy(new File(current.applicationInfo.sourceDir), backup);
-                Log.w(TAG, "Locker downgrade " + current.versionCode + " -> " + apkInfo.versionCode + ": uninstalling first");
+                EventLog.add(context, "LOCKER_DOWNGRADE", versionOf(current) + " -> " + versionOf(apkInfo) + ": uninstalling first");
                 Installer.uninstall(context, LOCKER_PACKAGE);
                 if (installWithRetries(context, apk)) {
                     status = PackageInstaller.STATUS_SUCCESS;
                 } else if (installWithRetries(context, backup)) {
-                    Log.e(TAG, "New locker would not install; previous locker restored");
+                    EventLog.add(context, "LOCKER_RESTORED", "new locker would not install; " + versionOf(current) + " put back");
                 } else {
-                    Log.e(TAG, "Locker could not be restored; retrying next cycle");
+                    EventLog.add(context, "LOCKER_STILL_MISSING", "could not restore " + versionOf(current) + "; retrying next cycle");
                 }
             } finally {
                 backup.delete();
             }
         }
-        if (status == PackageInstaller.STATUS_SUCCESS) Log.i(TAG, "Locker installed");
+        if (status == PackageInstaller.STATUS_SUCCESS) EventLog.add(context, "LOCKER_INSTALLED", versionOf(apkInfo));
         // Installing replaces the running locker (or brings back the old one): put it on screen again.
         launchLocker(context);
         return status == PackageInstaller.STATUS_SUCCESS;
@@ -298,7 +353,7 @@ public final class Updater {
     }
 
     @SuppressLint({"HardwareIds", "MissingPermission"})
-    private static String deviceId(Context context) {
+    static String deviceId(Context context) {
         String id = savedDeviceId(context);
         if (id != null) return id;
         // Requested by MainActivity on a new locker; ANDROID_ID when refused or without telephony.

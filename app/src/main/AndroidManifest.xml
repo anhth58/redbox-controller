@@ -14,6 +14,17 @@
         tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+    <!-- Clock and time zone on Android 6 (privileged system app); Android 11 sets them as device owner instead. -->
+    <uses-permission android:name="android.permission.SET_TIME"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.SET_TIME_ZONE"
+        tools:ignore="ProtectedPermissions" />
+
+    <!-- Locker app <-> controller (ControllerProvider). Same signing key only; the locker declares it too,
+         so the grant does not depend on which app is installed first. -->
+    <permission
+        android:name="com.redboxsa.controllerapp.permission.SYNC"
+        android:protectionLevel="signature" />
 
     <application
         android:name=".App"
@@ -38,6 +49,12 @@
             android:name=".update.UpdateJobService"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE" />
+
+        <provider
+            android:name=".update.ControllerProvider"
+            android:authorities="com.redboxsa.controllerapp.sync"
+            android:exported="true"
+            android:permission="com.redboxsa.controllerapp.permission.SYNC" />
 
         <receiver android:name=".receiver.AutoStartReceiver">
             <intent-filter>

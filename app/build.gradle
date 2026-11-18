@@ -1,7 +1,7 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion 28
+    compileSdkVersion 30
     defaultConfig {
         // Must never change: installed controllers (Android 6 and Android 11 device owner) only accept updates with this id.
         applicationId "com.redboxsa.controllerapp"

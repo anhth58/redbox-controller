@@ -4,7 +4,9 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 
+import com.redboxsa.controller.BuildConfig;
 import com.redboxsa.controller.activities.MainActivity;
+import com.redboxsa.controller.update.EventLog;
 import com.redboxsa.controller.update.UpdateJobService;
 
 public class AutoStartReceiver extends BroadcastReceiver {
@@ -17,6 +19,7 @@ public class AutoStartReceiver extends BroadcastReceiver {
             context.startActivity(new Intent(context, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         } else if (Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)) {
             // Self-update killed this process; the locker stays in front, only the background work restarts.
+            EventLog.add(context, "CONTROLLER_UPDATED", "now " + BuildConfig.VERSION_NAME + " (" + BuildConfig.VERSION_CODE + ")");
             UpdateJobService.schedule(context);
             UpdateJobService.runNow(context);
         }

@@ -16,7 +16,7 @@ public class App extends Application {
     public void onCreate() {
         super.onCreate();
         // Android 6 platform TLS stops at 1.2; Conscrypt adds 1.3. Android 10+ has 1.3 built in.
-        if (Build.VERSION.SDK_INT < 29) { // 29 = Android 10, not in compileSdk 28
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             try {
                 Security.insertProviderAt(Conscrypt.newProvider(), 1);
             } catch (Throwable t) {

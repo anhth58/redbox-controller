@@ -74,19 +74,19 @@ final class Installer {
             request.start(PendingIntent.getBroadcast(context, 0, callback, PendingIntent.FLAG_UPDATE_CURRENT).getIntentSender());
             Intent result = results.poll(RESULT_TIMEOUT_MINUTES, TimeUnit.MINUTES);
             if (result == null) {
-                Log.w(Updater.TAG, "No result from PackageInstaller after " + RESULT_TIMEOUT_MINUTES + " min");
+                EventLog.add(context, "INSTALL_FAILED", "no result from PackageInstaller after " + RESULT_TIMEOUT_MINUTES + " min");
                 return PackageInstaller.STATUS_FAILURE;
             }
             int status = result.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE);
             // Never start the confirm dialog: no popup on the locker screen.
             if (status == PackageInstaller.STATUS_PENDING_USER_ACTION) {
-                Log.e(Updater.TAG, "Not allowed to install silently (not privileged / not device owner)");
+                EventLog.add(context, "INSTALL_FAILED", "not allowed to install silently (not privileged / not device owner)");
             } else if (status != PackageInstaller.STATUS_SUCCESS) {
-                Log.e(Updater.TAG, "PackageInstaller status " + status + ": " + result.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE));
+                EventLog.add(context, "INSTALL_FAILED", "status " + status + ": " + result.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE));
             }
             return status;
         } catch (IOException e) {
-            Log.e(Updater.TAG, "PackageInstaller request failed", e);
+            EventLog.add(context, "INSTALL_FAILED", "PackageInstaller request failed: " + e.getMessage());
             return PackageInstaller.STATUS_FAILURE;
         } finally {
             context.unregisterReceiver(receiver);
