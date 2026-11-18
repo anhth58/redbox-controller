@@ -131,13 +131,20 @@ public final class Updater {
     private static JSONObject versionApi(Context context, String tokenUrl, String oldUrl, String query) throws IOException, JSONException {
         String token = State.token(context);
         if (token != null) {
+            boolean rejected = false;
             try {
                 JSONObject response = Http.getJson(context, tokenUrl + query, token);
-                if (data(response) != null) return response;
+                if (data(response) != null) {
+                    State.setTokenRejected(context, false);
+                    return response;
+                }
                 Log.w(TAG, "Token API answered without data, using the old API");
             } catch (IOException | JSONException e) {
+                rejected = e instanceof Http.StatusException
+                        && (((Http.StatusException) e).code == 401 || ((Http.StatusException) e).code == 403);
                 Log.w(TAG, "Token API failed, using the old API: " + e);
             }
+            State.setTokenRejected(context, rejected);
         }
         return Http.getJson(context, oldUrl + query, null);
     }
@@ -363,7 +370,7 @@ public final class Updater {
         return context.getSharedPreferences("FILE", Context.MODE_PRIVATE);
     }
 
-    private static String savedDeviceId(Context context) {
+    static String savedDeviceId(Context context) {
         String id = prefs(context).getString("uuid", null);
         return id == null || id.isEmpty() ? null : id;
     }

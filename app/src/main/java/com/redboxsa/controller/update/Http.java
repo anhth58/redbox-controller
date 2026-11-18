@@ -48,6 +48,16 @@ final class Http {
     private Http() {
     }
 
+    /** A non-2xx answer; the code tells e.g. a rejected token (401) from a missing endpoint. */
+    static final class StatusException extends IOException {
+        final int code;
+
+        StatusException(int code, String url) {
+            super("HTTP " + code + " " + url);
+            this.code = code;
+        }
+    }
+
     /** @param token locker token sent as "Authorization: Bearer", or null for the old token-less APIs */
     static JSONObject getJson(Context context, String url, String token) throws IOException, JSONException {
         return json(execute(context, request(url, token).build()), url);
@@ -93,7 +103,7 @@ final class Http {
 
     private static JSONObject json(Response response, String url) throws IOException, JSONException {
         try (Response r = response) {
-            if (!r.isSuccessful()) throw new IOException("HTTP " + r.code() + " " + url);
+            if (!r.isSuccessful()) throw new StatusException(r.code(), url);
             JSONObject json = new JSONObject(r.body().string());
             rememberServerDate(r);
             return json;

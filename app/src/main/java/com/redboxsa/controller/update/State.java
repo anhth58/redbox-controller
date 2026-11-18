@@ -67,6 +67,11 @@ final class State {
         return prefs(context).getString("server_timezone", null);
     }
 
+    /** The token API answered 401/403: the locker's token is expired or wrong. */
+    static void setTokenRejected(Context context, boolean rejected) {
+        prefs(context).edit().putBoolean("token_rejected", rejected).apply();
+    }
+
     static void setControllerLatest(Context context, int version) {
         prefs(context).edit().putInt("controller_latest", version).apply();
     }
@@ -99,6 +104,10 @@ final class State {
         if (latest > BuildConfig.VERSION_CODE) problems.put("CONTROLLER_OUTDATED");
         if (lastError != null) problems.put("LAST_CHECK_FAILED");
         if (sinceCheck < 0 || sinceCheck > NOT_RUNNING_AFTER_MS) problems.put("NOT_RUNNING");
+        // Without these the server cannot tell which locker / point this controller belongs to.
+        if (Updater.savedDeviceId(context) == null) problems.put("NO_UUID");
+        if (token(context) == null) problems.put("NO_TOKEN");
+        else if (prefs.getBoolean("token_rejected", false)) problems.put("TOKEN_REJECTED");
 
         return new JSONObject()
                 .put("uuid", Updater.deviceId(context))
