@@ -52,13 +52,15 @@ final class TimeSync {
 
         String zone = State.lockerTimeZone(context);
         if (zone == null) zone = State.serverTimeZone(context);
-        if (zone != null && !zone.equals(TimeZone.getDefault().getID())) {
+        String current = TimeZone.getDefault().getID();
+        if (zone != null && !zone.equals(current)) {
             if (!Arrays.asList(TimeZone.getAvailableIDs()).contains(zone)) {
                 EventLog.add(context, "TIMEZONE_SET_FAILED", "unknown time zone " + zone);
             } else {
+                // Read before setting: AlarmManager.setTimeZone also changes this process's default zone.
                 boolean ok = setTimeZone(context, zone);
                 EventLog.add(context, ok ? "TIMEZONE_SET" : "TIMEZONE_SET_FAILED",
-                        TimeZone.getDefault().getID() + " -> " + zone + (ok ? "" : ", no permission to set time zone"));
+                        current + " -> " + zone + (ok ? "" : ", no permission to set time zone"));
             }
         }
     }
