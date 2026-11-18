@@ -349,10 +349,11 @@ public final class Updater {
         return data.optBoolean("auto_update") || data.optBoolean("approved_apk");
     }
 
-    /** True only on a new locker: no uuid saved yet and the phone permission (IMEI) not granted. */
-    public static boolean needsPhonePermission(Context context) {
-        return savedDeviceId(context) == null
-                && context.checkSelfPermission(Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED;
+    /** uuid handed over by the locker app (ControllerProvider): adopted only while this controller has none saved. */
+    static void setLockerDeviceId(Context context, String id) {
+        if (id != null && !id.isEmpty() && savedDeviceId(context) == null) {
+            prefs(context).edit().putString("uuid", id).apply();
+        }
     }
 
     private static SharedPreferences prefs(Context context) {
@@ -369,7 +370,7 @@ public final class Updater {
     static String deviceId(Context context) {
         String id = savedDeviceId(context);
         if (id != null) return id;
-        // Requested by MainActivity on a new locker; ANDROID_ID when refused or without telephony.
+        // IMEI only if the permission was granted earlier (never asked for any more); the IPCs have no telephony anyway.
         if (context.checkSelfPermission(Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
             try {
                 id = context.getSystemService(TelephonyManager.class).getDeviceId();
@@ -377,10 +378,11 @@ public final class Updater {
                 // No telephony or no access to identifiers: fall back to ANDROID_ID.
             }
         }
-        if (id == null || id.isEmpty()) {
-            id = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID);
+        if (id != null && !id.isEmpty()) {
+            prefs(context).edit().putString("uuid", id).apply();
+            return id;
         }
-        prefs(context).edit().putString("uuid", id).apply();
-        return id;
+        // Not saved, so the locker's uuid replaces it at the locker's next sync (new locker only).
+        return Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID);
     }
 }

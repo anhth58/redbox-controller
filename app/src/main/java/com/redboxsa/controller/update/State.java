@@ -92,7 +92,6 @@ final class State {
         long sinceCheck = SystemClock.elapsedRealtime() - prefs.getLong("last_check_elapsed", -NOT_RUNNING_AFTER_MS);
 
         JSONArray problems = new JSONArray();
-        if (!phonePermission) problems.put("NO_PHONE_PERMISSION");
         // Android 8+ IPCs (Android 11) only install silently as device owner.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !deviceOwner) problems.put("NOT_DEVICE_OWNER");
         if (!silentInstall) problems.put("CANNOT_INSTALL");
