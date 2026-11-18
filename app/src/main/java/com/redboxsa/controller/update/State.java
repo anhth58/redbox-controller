@@ -33,14 +33,20 @@ final class State {
     }
 
     /** Called by the locker app every 5 minutes (see ControllerProvider). */
-    static void fromLocker(Context context, String token, long time, String timeZone) {
+    static void fromLocker(Context context, String token, long time, String timeZone, String server) {
         SharedPreferences.Editor editor = prefs(context).edit();
         if (token != null && !token.isEmpty()) editor.putString("token", token);
+        if (server != null && !server.isEmpty()) editor.putString("locker_server", server);
         if (time > 0) {
             editor.putLong("locker_time", time).putLong("locker_time_elapsed", SystemClock.elapsedRealtime());
         }
         if (timeZone != null && !timeZone.isEmpty()) editor.putString("locker_timezone", timeZone);
         editor.apply();
+    }
+
+    /** "dev" or "stage" from the locker app; only the test lockers use it (UrlCommon.server). */
+    static String lockerServer(Context context) {
+        return prefs(context).getString("locker_server", null);
     }
 
     static String token(Context context) {

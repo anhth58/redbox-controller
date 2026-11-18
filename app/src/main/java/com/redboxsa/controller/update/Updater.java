@@ -95,7 +95,7 @@ public final class Updater {
         }
 
         String uuid = deviceId(context);
-        Log.i(TAG, "Check: controller " + BuildConfig.VERSION_CODE + ", uuid " + uuid);
+        Log.i(TAG, "Check: controller " + BuildConfig.VERSION_CODE + ", uuid " + uuid + ", server " + server(context, uuid));
         String error = null;
         // Each step catches everything: a failure in one never skips the locker update.
         // New features go after updateLocker(), in their own try/catch.
@@ -128,12 +128,12 @@ public final class Updater {
      * Token API first (locker token); the old token-less API when the locker has not handed over a token yet,
      * or the token API fails or is not deployed yet.
      */
-    private static JSONObject versionApi(Context context, String tokenUrl, String oldUrl, String query) throws IOException, JSONException {
+    private static JSONObject versionApi(Context context, String uuid, String tokenPath, String oldPath, String query) throws IOException, JSONException {
         String token = State.token(context);
         if (token != null) {
             boolean rejected = false;
             try {
-                JSONObject response = Http.getJson(context, tokenUrl + query, token);
+                JSONObject response = Http.getJson(context, server(context, uuid) + tokenPath + query, token);
                 if (data(response) != null) {
                     State.setTokenRejected(context, false);
                     return response;
@@ -146,11 +146,11 @@ public final class Updater {
             }
             State.setTokenRejected(context, rejected);
         }
-        return Http.getJson(context, oldUrl + query, null);
+        return Http.getJson(context, server(context, uuid) + oldPath + query, null);
     }
 
     private static void updateSelf(Context context, String uuid) throws IOException, JSONException, InterruptedException {
-        JSONObject data = data(versionApi(context, UrlCommon.CONTROLLER_VERSION, UrlCommon.CHECK_FOR_SELF_UPDATE,
+        JSONObject data = data(versionApi(context, uuid, UrlCommon.CONTROLLER_VERSION, UrlCommon.CHECK_FOR_SELF_UPDATE,
                 "?current_version=" + BuildConfig.VERSION_CODE + "&uuid=" + Uri.encode(uuid)));
         if (data == null) return;
         State.setControllerLatest(context, data.optInt("new_version"));
@@ -181,7 +181,7 @@ public final class Updater {
 
     @SuppressWarnings("deprecation")
     private static void updateLocker(Context context, String uuid, File savedLocker) throws IOException, JSONException, InterruptedException {
-        JSONObject data = data(versionApi(context, UrlCommon.LOCKER_VERSION, UrlCommon.CHECK_FOR_UPDATE,
+        JSONObject data = data(versionApi(context, uuid, UrlCommon.LOCKER_VERSION, UrlCommon.CHECK_FOR_UPDATE,
                 "?uuid=" + Uri.encode(uuid)));
         if (data == null) return;
         State.setServerTimeZone(context, data.optString("timezone", null));
@@ -352,6 +352,11 @@ public final class Updater {
 
     private static JSONObject data(JSONObject response) {
         return response.optBoolean("state") ? response.optJSONObject("data") : null;
+    }
+
+    /** Production for every locker; dev or stage only for the test lockers (see UrlCommon.server). */
+    static String server(Context context, String uuid) {
+        return UrlCommon.server(uuid, State.lockerServer(context));
     }
 
     private static boolean approved(JSONObject data) {

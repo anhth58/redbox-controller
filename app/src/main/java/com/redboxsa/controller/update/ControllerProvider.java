@@ -19,6 +19,7 @@ import org.json.JSONException;
  * in.putString("token", token);            // locker JWT, used as "Authorization: Bearer" on the token APIs
  * in.putLong("time", exactNowMillis);        // exact current time (epoch ms) as the locker knows it from its server
  * in.putString("timezone", "Asia/Riyadh");   // IANA time zone id of the locker
+ * in.putString("server", "dev");             // "dev" or "stage" when the locker app is a dev/stage build; else omit
  * Bundle out = getContentResolver().call(Uri.parse("content://com.redboxsa.controllerapp.sync"), "sync", null, in);
  * String status = out.getString("status");   // JSON to forward to the server as is
  * </pre>
@@ -41,7 +42,8 @@ public class ControllerProvider extends ContentProvider {
 
         if (extras != null) {
             Updater.setLockerDeviceId(getContext(), extras.getString("uuid"));
-            State.fromLocker(getContext(), extras.getString("token"), extras.getLong("time"), extras.getString("timezone"));
+            State.fromLocker(getContext(), extras.getString("token"), extras.getLong("time"), extras.getString("timezone"),
+                    extras.getString("server"));
         }
         // The locker calls every 5 minutes: a cheap way to make sure the 30-minute job is still there.
         UpdateJobService.schedule(getContext());

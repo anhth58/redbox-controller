@@ -66,7 +66,7 @@ public final class EventLog {
                 // A line cut by a power loss: drop it rather than block every later upload.
             }
         }
-        JSONObject response = Http.postJson(context, UrlCommon.CONTROLLER_LOGS, token, new JSONObject()
+        JSONObject response = Http.postJson(context, Updater.server(context, uuid) + UrlCommon.CONTROLLER_LOGS, token, new JSONObject()
                 .put("uuid", uuid)
                 .put("controller_version", BuildConfig.VERSION_CODE)
                 .put("logs", logs));
