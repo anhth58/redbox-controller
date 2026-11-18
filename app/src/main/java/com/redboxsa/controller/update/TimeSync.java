@@ -16,7 +16,7 @@ import java.util.Arrays;
 import java.util.TimeZone;
 
 /**
- * Keeps the IPC clock and time zone right, every cycle (30 minutes).
+ * Keeps the IPC clock and time zone right, at every locker sync (5 minutes) and every cycle (30 minutes).
  * Exact time: the locker app (it gets it from the server every 5 minutes), else the Date header of our own API calls.
  * Time zone: the locker app, else the "timezone" field of the token API.
  * Android 11: set as device owner. Android 6: set as privileged system app (SET_TIME / SET_TIME_ZONE).
@@ -31,7 +31,8 @@ final class TimeSync {
     private TimeSync() {
     }
 
-    static void run(Context context) {
+    /** Synchronized: the 30-minute cycle and the locker's sync call may run it at the same time. */
+    static synchronized void run(Context context) {
         long lockerNow = State.lockerNow(context);
         long serverNow = Http.serverNow();
         long exactNow = lockerNow != 0 ? lockerNow : serverNow;

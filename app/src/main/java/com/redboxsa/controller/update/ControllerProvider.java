@@ -47,6 +47,12 @@ public class ControllerProvider extends ContentProvider {
         }
         // The locker calls every 5 minutes: a cheap way to make sure the 30-minute job is still there.
         UpdateJobService.schedule(getContext());
+        try {
+            // An IPC clock reset is fixed within 5 minutes instead of at the next 30-minute cycle. No network here.
+            TimeSync.run(getContext());
+        } catch (RuntimeException e) {
+            Log.e(Updater.TAG, "Time sync from the locker call failed", e);
+        }
 
         Bundle out = new Bundle();
         try {
