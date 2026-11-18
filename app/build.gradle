@@ -3,43 +3,59 @@ apply plugin: 'com.android.application'
 android {
     compileSdkVersion 28
     defaultConfig {
+        // Must never change: installed controllers (Android 6 and Android 11 device owner) only accept updates with this id.
         applicationId "com.redboxsa.controllerapp"
-        minSdkVersion 19
+        // Android 6 is the oldest IPC in the field.
+        minSdkVersion 23
+        // Kept at 28: raising it changes background-start and PendingIntent rules on Android 11.
         targetSdkVersion 28
-        versionCode 7
-        versionName "1.6"
-        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+        // Also sent to the server as the controller version. Must be > 7 (production 07/03/2024 = 6, 20/03/2024 = 7).
+        versionCode 8
+        versionName "2.0"
+        ndk {
+            // Real IPCs only (Android 6 = armv7, Android 11 = arm64); no x86/emulator libraries.
+            abiFilters 'armeabi-v7a', 'arm64-v8a'
+        }
+    }
+    signingConfigs {
+        release {
+            // Credentials live in local.properties (git-ignored), see controller.* keys.
+            def props = new Properties()
+            rootProject.file('local.properties').withInputStream { props.load(it) }
+            storeFile file(props.getProperty('controller.storeFile'))
+            storePassword props.getProperty('controller.storePassword')
+            keyAlias props.getProperty('controller.keyAlias')
+            keyPassword props.getProperty('controller.keyPassword')
+            // Android 6 only verifies V1 (JAR) signatures.
+            v1SigningEnabled true
+            v2SigningEnabled true
+        }
     }
     buildTypes {
         release {
             minifyEnabled false
-            shrinkResources false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+        }
+    }
+    packagingOptions {
+        jniLibs {
+            // Extract Conscrypt's .so on install, as the Android 6 updated-system-app path expects.
+            useLegacyPackaging true
         }
     }
     lintOptions {
+        // Not distributed through Google Play: its targetSdk rule does not apply.
         checkReleaseBuilds false
-        // Or, if you prefer, you can continue to check for errors in release builds,
-        // but continue the build even when errors are found:
         abortOnError false
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
-    useLibrary 'org.apache.http.legacy'
 }
 
 dependencies {
-    implementation fileTree(dir: 'libs', include: ['*.jar'])
-    //implementation 'com.android.support:appcompat-v7:28.0.0'
-    implementation 'com.android.support.constraint:constraint-layout:1.1.3'
-    testImplementation 'junit:junit:4.12'
-    androidTestImplementation 'com.android.support.test:runner:1.0.2'
-    androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
-    implementation 'com.mcxiaoke.volley:library:1.0.9'
-    implementation 'com.google.code.gson:gson:2.8.5'
-    implementation 'androidx.appcompat:appcompat:1.1.0'
-
     implementation 'com.squareup.okhttp3:okhttp:4.9.0'
+    // TLS 1.3 on Android 6 (platform TLS there stops at 1.2).
+    implementation 'org.conscrypt:conscrypt-android:2.5.2'
 }
