@@ -88,21 +88,28 @@ final class Http {
     }
 
     private static Response execute(Context context, Request request) throws IOException {
-        Response response = client(context).newCall(request).execute();
-        Date date = response.headers().getDate("Date");
-        if (date != null) {
-            synchronized (Http.class) {
-                serverDateMs = date.getTime();
-                serverDateElapsed = SystemClock.elapsedRealtime();
-            }
-        }
-        return response;
+        return client(context).newCall(request).execute();
     }
 
     private static JSONObject json(Response response, String url) throws IOException, JSONException {
         try (Response r = response) {
             if (!r.isSuccessful()) throw new IOException("HTTP " + r.code() + " " + url);
-            return new JSONObject(r.body().string());
+            JSONObject json = new JSONObject(r.body().string());
+            rememberServerDate(r);
+            return json;
+        }
+    }
+
+    /**
+     * Only from our own successful API answers: a download may come from a CDN cache whose Date is hours or days old,
+     * which would set the locker clock back. "Age" marks such a cached answer.
+     */
+    private static void rememberServerDate(Response response) {
+        Date date = response.headers().getDate("Date");
+        if (date == null || response.header("Age") != null) return;
+        synchronized (Http.class) {
+            serverDateMs = date.getTime();
+            serverDateElapsed = SystemClock.elapsedRealtime();
         }
     }
 

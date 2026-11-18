@@ -133,8 +133,8 @@ public final class Updater {
         if (token != null) {
             try {
                 JSONObject response = Http.getJson(context, tokenUrl + query, token);
-                if (response.optBoolean("state")) return response;
-                Log.w(TAG, "Token API answered state=false, using the old API");
+                if (data(response) != null) return response;
+                Log.w(TAG, "Token API answered without data, using the old API");
             } catch (IOException | JSONException e) {
                 Log.w(TAG, "Token API failed, using the old API: " + e);
             }
@@ -232,7 +232,9 @@ public final class Updater {
     private static boolean installLocker(Context context, File apk, PackageInfo apkInfo) throws InterruptedException, IOException {
         int status = install(context, apk);
         PackageInfo current = installedInfo(context);
-        if (status != PackageInstaller.STATUS_SUCCESS && current != null && apkInfo.versionCode < current.versionCode) {
+        // Only Android's downgrade refusal (INCOMPATIBLE) for a lower versionCode: any other failure (no install permission,
+        // storage, ...) would make the reinstall fail too, so the running locker is never removed for it.
+        if (status == PackageInstaller.STATUS_FAILURE_INCOMPATIBLE && current != null && apkInfo.versionCode < current.versionCode) {
             File backup = new File(context.getFilesDir(), "locker-backup.apk");
             try {
                 copy(new File(current.applicationInfo.sourceDir), backup);

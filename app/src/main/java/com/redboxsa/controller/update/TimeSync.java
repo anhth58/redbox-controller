@@ -25,23 +25,29 @@ final class TimeSync {
 
     /** Smaller drifts are left alone: not worth fighting the locker's own time handling or NTP. */
     private static final long MAX_DRIFT_MS = 60 * 1000L;
+    /** 2025-01-01: anything earlier is a broken value (e.g. seconds sent instead of ms), never a clock to set. */
+    private static final long MIN_VALID_TIME_MS = 1735689600000L;
 
     private TimeSync() {
     }
 
     static void run(Context context) {
         long lockerNow = State.lockerNow(context);
-        long exactNow = lockerNow != 0 ? lockerNow : Http.serverNow();
+        long serverNow = Http.serverNow();
+        long exactNow = lockerNow != 0 ? lockerNow : serverNow;
         String source = lockerNow != 0 ? "locker" : "server";
-        if (exactNow != 0) {
+        if (lockerNow != 0 && serverNow != 0 && Math.abs(lockerNow - serverNow) > MAX_DRIFT_MS) {
+            // A bug on either side must never move the clock: leave it alone until both agree again.
+            EventLog.add(context, "TIME_SET_SKIPPED", "locker and server time differ by " + (lockerNow - serverNow) / 1000 + "s");
+        } else if (exactNow < MIN_VALID_TIME_MS) {
+            Log.i(Updater.TAG, "No exact time available yet");
+        } else {
             long drift = System.currentTimeMillis() - exactNow;
             if (Math.abs(drift) > MAX_DRIFT_MS) {
                 boolean ok = setTime(context, exactNow);
                 EventLog.add(context, ok ? "TIME_SET" : "TIME_SET_FAILED",
                         "drift " + drift / 1000 + "s, source " + source + (ok ? "" : ", no permission to set time"));
             }
-        } else {
-            Log.i(Updater.TAG, "No exact time available yet");
         }
 
         String zone = State.lockerTimeZone(context);
