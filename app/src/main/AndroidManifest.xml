@@ -51,6 +51,17 @@
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE" />
 
+        <!-- Nexgo N62 payment terminal only (n62 package); never started on a locker. -->
+        <activity
+            android:name=".n62.N62Activity"
+            android:label="Controller App"
+            android:theme="@android:style/Theme.Material.Light" />
+
+        <service
+            android:name=".n62.N62JobService"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
         <provider
             android:name=".update.ControllerProvider"
             android:authorities="com.redboxsa.controllerapp.sync"

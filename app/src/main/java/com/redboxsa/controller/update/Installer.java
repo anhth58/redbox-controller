@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit;
  * Android 6 = privileged system app holding INSTALL_PACKAGES, Android 11 = device owner.
  * Calls block until Android reports the result, so the caller can react (retry, open the locker).
  */
-final class Installer {
+public final class Installer {
 
     private static final String ACTION_RESULT = "com.redboxsa.controllerapp.PACKAGE_RESULT";
     private static final long RESULT_TIMEOUT_MINUTES = 5;
@@ -32,7 +32,7 @@ final class Installer {
     }
 
     /** @return a {@link PackageInstaller} STATUS_* code. Installing this app itself never returns: Android kills the process. */
-    static int install(Context context, File apk) throws IOException, InterruptedException {
+    public static int install(Context context, File apk) throws IOException, InterruptedException {
         PackageInstaller installer = context.getPackageManager().getPackageInstaller();
         int sessionId = installer.createSession(
                 new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL));

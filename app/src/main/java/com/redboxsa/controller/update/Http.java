@@ -36,7 +36,7 @@ import okio.Okio;
  * HTTPS for the controller. TLS 1.2 and 1.3 (1.3 on Android 6 comes from Conscrypt, see App).
  * Trusts the system CAs plus the bundled ISRG Root X1, which Android 6 lacks (Let's Encrypt servers such as dev).
  */
-final class Http {
+public final class Http {
 
     private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
 
@@ -63,7 +63,7 @@ final class Http {
         return json(execute(context, request(url, token).build()), url);
     }
 
-    static JSONObject postJson(Context context, String url, String token, JSONObject body) throws IOException, JSONException {
+    public static JSONObject postJson(Context context, String url, String token, JSONObject body) throws IOException, JSONException {
         return json(execute(context, request(url, token).post(RequestBody.create(body.toString(), JSON)).build()), url);
     }
 
@@ -74,7 +74,7 @@ final class Http {
     }
 
     /** Writes to a temp file first so a broken download never replaces {@code target}. */
-    static void download(Context context, String url, File target) throws IOException {
+    public static void download(Context context, String url, File target) throws IOException {
         File tmp = new File(target.getPath() + ".part");
         try (Response response = execute(context, new Request.Builder().url(url).build())) {
             if (!response.isSuccessful()) throw new IOException("HTTP " + response.code() + " " + url);

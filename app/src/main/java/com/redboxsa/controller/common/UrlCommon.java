@@ -9,8 +9,9 @@ public class UrlCommon {
     public static final String DEV = "https://dev.redboxsa.com";
     public static final String STAGE = "https://stage.redboxsa.com";
 
-    /** Test lockers: they follow the server their locker app uses. Every other locker always uses production. */
-    private static final List<String> TEST_UUIDS = Arrays.asList("197c54c405e513f8", "866732032337033");
+    /** Test devices: lockers follow the server their locker app uses; the N62 test terminal uses dev. Everything else is production. */
+    private static final List<String> TEST_UUIDS = Arrays.asList("197c54c405e513f8", "866732032337033",
+            "d01baa87f9a13f0b"); // N62 test terminal (Nearpay sandbox installed); ANDROID_ID as this app sees it
 
     /**
      * @param lockerServer "dev" or "stage", as handed over by the locker app (null when it has not said yet)

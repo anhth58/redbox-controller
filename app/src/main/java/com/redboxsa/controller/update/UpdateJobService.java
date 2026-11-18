@@ -7,6 +7,8 @@ import android.app.job.JobService;
 import android.content.ComponentName;
 import android.content.Context;
 
+import com.redboxsa.controller.n62.N62;
+
 /**
  * Runs {@link Updater} every 30 minutes, 24/7, on Android 6 and Android 11.
  * JobScheduler (unlike the old AlarmManager + service chain) is allowed to start this app in the background on Android 8+,
@@ -20,6 +22,7 @@ public class UpdateJobService extends JobService {
 
     /** Idempotent: leaves an existing periodic job alone so its 30-minute rhythm is not reset. */
     public static void schedule(Context context) {
+        if (N62.isN62()) return; // the locker flow never runs on a payment terminal (see the n62 package)
         JobScheduler scheduler = context.getSystemService(JobScheduler.class);
         for (JobInfo job : scheduler.getAllPendingJobs()) {
             if (job.getId() == PERIODIC_JOB_ID) return;
@@ -32,6 +35,7 @@ public class UpdateJobService extends JobService {
 
     /** One check as soon as possible, run under the job so the system keeps the process alive while it downloads. */
     public static void runNow(Context context) {
+        if (N62.isN62()) return;
         context.getSystemService(JobScheduler.class).schedule(
                 new JobInfo.Builder(RUN_NOW_JOB_ID, new ComponentName(context, UpdateJobService.class))
                         .setOverrideDeadline(0)
