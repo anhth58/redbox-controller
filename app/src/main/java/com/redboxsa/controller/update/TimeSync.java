@@ -79,19 +79,27 @@ final class TimeSync {
         if (deviceOwnerCanSetTime(context)) {
             DevicePolicyManager dpm = context.getSystemService(DevicePolicyManager.class);
             ComponentName admin = new ComponentName(context, DeviceOwnerReceiver.class);
-            // The time is wrong although automatic time may be on (no NTP on the IPC): we take over; setTime refuses otherwise.
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                dpm.setAutoTimeEnabled(admin, false);
-            } else {
-                dpm.setGlobalSetting(admin, Settings.Global.AUTO_TIME, "0");
-            }
-            return dpm.setTime(admin, millis);
+            // setTime refuses while automatic time is on: switch it off for the call, then back on so NTP stays as a fallback.
+            boolean autoTime = Settings.Global.getInt(context.getContentResolver(), Settings.Global.AUTO_TIME, 0) == 1;
+            setAutoTime(dpm, admin, false);
+            boolean ok = dpm.setTime(admin, millis);
+            if (autoTime) setAutoTime(dpm, admin, true);
+            return ok;
         }
         try {
             context.getSystemService(AlarmManager.class).setTime(millis);
             return true;
         } catch (SecurityException e) {
             return false;
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    private static void setAutoTime(DevicePolicyManager dpm, ComponentName admin, boolean on) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            dpm.setAutoTimeEnabled(admin, on);
+        } else {
+            dpm.setGlobalSetting(admin, Settings.Global.AUTO_TIME, on ? "1" : "0");
         }
     }
 
