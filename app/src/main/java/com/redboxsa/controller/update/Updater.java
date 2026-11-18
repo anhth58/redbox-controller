@@ -83,6 +83,11 @@ public final class Updater {
     }
 
     private static void runOnce(Context context) throws InterruptedException {
+        // Leftovers of a cycle killed mid-way (reboot, power loss). Never locker.apk / locker-backup.apk: recovery copies.
+        for (String name : new String[]{Delta.PATCH_FILE, "controller.apk", "locker-download.apk"}) {
+            new File(context.getFilesDir(), name).delete();
+            new File(context.getFilesDir(), name + ".part").delete();
+        }
         File savedLocker = new File(context.getFilesDir(), "locker.apk");
         if (!isInstalled(context, LOCKER_PACKAGE) && savedLocker.exists()) {
             EventLog.add(context, "LOCKER_MISSING", "reinstalling the last locker that installed fine");
@@ -147,7 +152,7 @@ public final class Updater {
 
         File apk = new File(context.getFilesDir(), "controller.apk");
         try {
-            Http.download(context, data.getString("apk_url"), apk);
+            if (!Delta.build(context, data, context.getPackageName(), apk)) Http.download(context, data.getString("apk_url"), apk);
             PackageInfo info = verify(context, apk, context.getPackageName());
             // Guards against an endless download/install loop when the server number and the apk disagree.
             if (info.versionCode <= BuildConfig.VERSION_CODE) {
@@ -179,7 +184,9 @@ public final class Updater {
         if (installed == null || newVersion) {
             File download = new File(context.getFilesDir(), "locker-download.apk");
             try {
-                Http.download(context, data.getString("apk_url"), download);
+                if (installed == null || !Delta.build(context, data, LOCKER_PACKAGE, download)) {
+                    Http.download(context, data.getString("apk_url"), download);
+                }
                 PackageInfo apk = verify(context, download, LOCKER_PACKAGE);
                 if (installed != null && sameAsInstalled(context, download)) {
                     // Server still reports an old version: reinstalling would only kill the running locker.
@@ -310,7 +317,13 @@ public final class Updater {
         }
     }
 
-    private static byte[] sha256(File file) throws Exception {
+    static String hex(byte[] bytes) {
+        StringBuilder s = new StringBuilder(bytes.length * 2);
+        for (byte b : bytes) s.append(String.format("%02x", b));
+        return s.toString();
+    }
+
+    static byte[] sha256(File file) throws Exception {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         try (InputStream in = new FileInputStream(file)) {
             byte[] buffer = new byte[64 * 1024];
