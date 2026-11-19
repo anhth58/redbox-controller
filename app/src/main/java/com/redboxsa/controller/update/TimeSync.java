@@ -5,6 +5,7 @@ import android.app.AlarmManager;
 import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.provider.Settings;
@@ -39,31 +40,52 @@ final class TimeSync {
         String source = lockerNow != 0 ? "locker" : "server";
         if (lockerNow != 0 && serverNow != 0 && Math.abs(lockerNow - serverNow) > MAX_DRIFT_MS) {
             // A bug on either side must never move the clock: leave it alone until both agree again.
-            EventLog.add(context, "TIME_SET_SKIPPED", "locker and server time differ by " + (lockerNow - serverNow) / 1000 + "s");
+            report(context, "time", "TIME_SET_SKIPPED", "locker and server time differ by " + (lockerNow - serverNow) / 1000 + "s");
         } else if (exactNow < MIN_VALID_TIME_MS) {
             Log.i(Updater.TAG, "No exact time available yet");
         } else {
             long drift = System.currentTimeMillis() - exactNow;
-            if (Math.abs(drift) > MAX_DRIFT_MS) {
-                boolean ok = setTime(context, exactNow);
-                EventLog.add(context, ok ? "TIME_SET" : "TIME_SET_FAILED",
-                        "drift " + drift / 1000 + "s, source " + source + (ok ? "" : ", no permission to set time"));
+            if (Math.abs(drift) <= MAX_DRIFT_MS) {
+                report(context, "time", null, null);
+            } else if (setTime(context, exactNow)) {
+                report(context, "time", null, null);
+                EventLog.add(context, "TIME_SET", "drift " + drift / 1000 + "s, source " + source);
+            } else {
+                report(context, "time", "TIME_SET_FAILED", "drift " + drift / 1000 + "s, source " + source + ", no permission to set time");
             }
         }
 
-        String zone = State.lockerTimeZone(context);
-        if (zone == null) zone = State.serverTimeZone(context);
+        // The zone is only touched when it is surely right: a real zone id of this device, and the server does not say otherwise.
+        // Anything else leaves the zone and its automatic setting exactly as they are.
+        String lockerZone = State.lockerTimeZone(context);
+        String serverZone = State.serverTimeZone(context);
+        String zone = lockerZone != null ? lockerZone : serverZone;
         String current = TimeZone.getDefault().getID();
-        if (zone != null && !zone.equals(current)) {
-            if (!Arrays.asList(TimeZone.getAvailableIDs()).contains(zone)) {
-                EventLog.add(context, "TIMEZONE_SET_FAILED", "unknown time zone " + zone);
-            } else {
-                // Read before setting: AlarmManager.setTimeZone also changes this process's default zone.
-                boolean ok = setTimeZone(context, zone);
-                EventLog.add(context, ok ? "TIMEZONE_SET" : "TIMEZONE_SET_FAILED",
-                        current + " -> " + zone + (ok ? "" : ", no permission to set time zone"));
-            }
+        if (zone == null || zone.equals(current)) {
+            report(context, "zone", null, null);
+        } else if (!Arrays.asList(TimeZone.getAvailableIDs()).contains(zone)) {
+            report(context, "zone", "TIMEZONE_SET_FAILED", "unknown time zone " + zone + ", left " + current);
+        } else if (lockerZone != null && serverZone != null && !lockerZone.equals(serverZone)) {
+            report(context, "zone", "TIMEZONE_SET_SKIPPED", "locker says " + lockerZone + ", server says " + serverZone + ", left " + current);
+        } else if (setTimeZone(context, zone)) {
+            // Read before setting: AlarmManager.setTimeZone also changes this process's default zone.
+            report(context, "zone", null, null);
+            EventLog.add(context, "TIMEZONE_SET", current + " -> " + zone);
+        } else {
+            report(context, "zone", "TIMEZONE_SET_FAILED", current + " -> " + zone + ", no permission to set time zone");
         }
+    }
+
+    /**
+     * Logs a lasting problem once instead of every 5 minutes (the locker's sync), so it cannot push real events out of
+     * the 500-line log. {@code type} null = the problem is over; the next one is logged again.
+     */
+    private static void report(Context context, String area, String type, String message) {
+        SharedPreferences prefs = context.getSharedPreferences("time_sync", Context.MODE_PRIVATE);
+        String last = prefs.getString(area, null);
+        if (type == null ? last == null : type.equals(last)) return;
+        prefs.edit().putString(area, type).apply();
+        if (type != null) EventLog.add(context, type, message);
     }
 
     static boolean canSetTime(Context context) {
@@ -105,16 +127,25 @@ final class TimeSync {
     }
 
     @SuppressWarnings("deprecation")
+    private static void setAutoTimeZone(DevicePolicyManager dpm, ComponentName admin, boolean on) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            dpm.setAutoTimeZoneEnabled(admin, on);
+        } else {
+            dpm.setGlobalSetting(admin, Settings.Global.AUTO_TIME_ZONE, on ? "1" : "0");
+        }
+    }
+
+    @SuppressWarnings("deprecation")
     private static boolean setTimeZone(Context context, String zone) {
         if (deviceOwnerCanSetTime(context)) {
             DevicePolicyManager dpm = context.getSystemService(DevicePolicyManager.class);
             ComponentName admin = new ComponentName(context, DeviceOwnerReceiver.class);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                dpm.setAutoTimeZoneEnabled(admin, false);
-            } else {
-                dpm.setGlobalSetting(admin, Settings.Global.AUTO_TIME_ZONE, "0");
-            }
-            return dpm.setTimeZone(admin, zone);
+            // setTimeZone refuses while automatic time zone is on: off for the call only, then back as it was (also on failure).
+            boolean autoZone = Settings.Global.getInt(context.getContentResolver(), Settings.Global.AUTO_TIME_ZONE, 0) == 1;
+            setAutoTimeZone(dpm, admin, false);
+            boolean ok = dpm.setTimeZone(admin, zone);
+            if (autoZone) setAutoTimeZone(dpm, admin, true);
+            return ok;
         }
         try {
             context.getSystemService(AlarmManager.class).setTimeZone(zone);
