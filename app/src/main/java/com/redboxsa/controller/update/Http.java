@@ -1,6 +1,7 @@
 package com.redboxsa.controller.update;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.SystemClock;
 
 import com.redboxsa.controller.R;
@@ -17,6 +18,7 @@ import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.Date;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.SSLContext;
@@ -30,6 +32,7 @@ import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
 import okio.BufferedSink;
+import okio.BufferedSource;
 import okio.Okio;
 
 /**
@@ -73,23 +76,84 @@ public final class Http {
         return serverDateMs == 0 || age < 0 || age > 60 * 60 * 1000L ? 0 : serverDateMs + age;
     }
 
-    /** Writes to a temp file first so a broken download never replaces {@code target}. */
+    /**
+     * Resumable, for lockers on weak SIM connections: a broken download keeps its bytes in {@code target}.part and the next
+     * attempt asks only for the rest (Range, with If-Range on the ETag so a changed file starts over). A large apk then
+     * costs its size once, however many cycles it takes. A broken download never replaces {@code target}.
+     * Each target needs its own name: another url for the same target drops the partial bytes.
+     *
+     * @throws StatusException the server refused the file (missing, forbidden): retrying will not help
+     */
     public static void download(Context context, String url, File target) throws IOException {
-        File tmp = new File(target.getPath() + ".part");
-        try (Response response = execute(context, new Request.Builder().url(url).build())) {
-            if (!response.isSuccessful()) throw new IOException("HTTP " + response.code() + " " + url);
-            long expected = response.body().contentLength();
-            try (BufferedSink sink = Okio.buffer(Okio.sink(tmp))) {
+        File part = new File(target.getPath() + ".part");
+        File meta = new File(target.getPath() + ".part.meta"); // the url and ETag the partial bytes belong to
+        String[] saved = readMeta(meta);
+        long have = url.equals(saved[0]) && !saved[1].isEmpty() ? part.length() : 0;
+        if (have == 0) part.delete();
+
+        // identity: byte offsets must refer to the file itself, never to a gzip stream.
+        Request.Builder request = new Request.Builder().url(url).header("Accept-Encoding", "identity");
+        if (have > 0) request.header("Range", "bytes=" + have + "-").header("If-Range", saved[1]);
+        try (Response response = execute(context, request.build())) {
+            if (response.code() == 416) {
+                // The partial bytes do not fit the file (e.g. longer): drop them, start over next time.
+                part.delete();
+                throw new IOException("Cannot resume " + url + ", starting over next time");
+            }
+            if (!response.isSuccessful()) throw new StatusException(response.code(), url);
+            boolean resumed = response.code() == 206;
+            if (resumed && !String.valueOf(response.header("Content-Range")).startsWith("bytes " + have + "-")) {
+                part.delete();
+                throw new IOException("Unexpected Content-Range " + response.header("Content-Range") + " for " + url);
+            }
+            if (!resumed) have = 0; // 200: the whole file again (no Range support, or the file changed)
+            writeMeta(meta, url, response.header("ETag", ""));
+            long expected = response.body().contentLength(); // the remaining bytes when resumed
+            try (BufferedSink sink = Okio.buffer(resumed ? Okio.appendingSink(part) : Okio.sink(part))) {
                 sink.writeAll(response.body().source());
             }
-            if (expected >= 0 && tmp.length() != expected) {
-                throw new IOException("Incomplete download " + tmp.length() + "/" + expected + " " + url);
+            if (expected >= 0 && part.length() != have + expected) {
+                throw new IOException("Incomplete download " + part.length() + "/" + (have + expected) + " " + url);
             }
-        } catch (IOException e) {
-            tmp.delete();
-            throw e;
         }
-        if (!tmp.renameTo(target)) throw new IOException("Cannot move " + tmp + " to " + target);
+        if (!part.renameTo(target)) throw new IOException("Cannot move " + part + " to " + target);
+        meta.delete();
+    }
+
+    /** Same apk again at most once a day: skipped, failed or still-offered apks would otherwise cost SIM data every cycle. */
+    public static final long REFETCH_AFTER_MS = 24 * 60 * 60 * 1000L;
+
+    /** @return true when {@code url} was fully fetched less than {@code windowMs} ago (see {@link #markFetched}) */
+    public static boolean fetchedRecently(Context context, String url, long windowMs) {
+        long at = context.getSharedPreferences("downloads", Context.MODE_PRIVATE).getLong(url, 0);
+        long age = System.currentTimeMillis() - at;
+        return at != 0 && age >= 0 && age < windowMs; // age < 0: the clock was set back, do not trust it
+    }
+
+    public static void markFetched(Context context, String url) {
+        SharedPreferences prefs = context.getSharedPreferences("downloads", Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+        long now = System.currentTimeMillis();
+        for (Map.Entry<String, ?> entry : prefs.getAll().entrySet()) {
+            Object at = entry.getValue();
+            if (!(at instanceof Long) || now - (Long) at > REFETCH_AFTER_MS) editor.remove(entry.getKey());
+        }
+        editor.putLong(url, now).apply();
+    }
+
+    private static String[] readMeta(File meta) {
+        try (BufferedSource source = Okio.buffer(Okio.source(meta))) {
+            String[] lines = source.readUtf8().split("\n", -1);
+            return lines.length == 2 ? lines : new String[]{"", ""};
+        } catch (IOException e) {
+            return new String[]{"", ""};
+        }
+    }
+
+    private static void writeMeta(File meta, String url, String etag) throws IOException {
+        try (BufferedSink sink = Okio.buffer(Okio.sink(meta))) {
+            sink.writeUtf8(url + "\n" + etag);
+        }
     }
 
     private static Request.Builder request(String url, String token) {

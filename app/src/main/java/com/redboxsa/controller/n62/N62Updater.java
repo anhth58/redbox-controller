@@ -86,11 +86,18 @@ final class N62Updater {
         int installed = installedVersion(context, packageName);
         Log.i(N62.TAG, packageName + " installed " + installed + ", server " + remoteVersion);
         if (installed >= remoteVersion) return;
+        // Same SIM-data rule as the lockers: one fetch of the same file per day, every 2 h while the app is missing.
+        if (Http.fetchedRecently(context, link, installed < 0 ? 2 * 60 * 60 * 1000L : Http.REFETCH_AFTER_MS)) {
+            Log.i(N62.TAG, packageName + " already fetched recently, not again: " + link);
+            return;
+        }
 
-        File download = new File(context.getFilesDir(), "n62-download");
+        // One file per app: a resumed download must not be dropped by the other app's download.
+        File download = new File(context.getFilesDir(), "n62-" + packageName + ".download");
         File extracted = new File(context.getFilesDir(), "n62-extracted.apk");
         try {
             Http.download(context, link, download);
+            Http.markFetched(context, link);
             File apk = isApk(download) ? download : extractApk(download, extracted);
             PackageInfo info = context.getPackageManager().getPackageArchiveInfo(apk.getPath(), 0);
             if (info == null || !packageName.equals(info.packageName)) {

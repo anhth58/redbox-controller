@@ -83,10 +83,11 @@ public final class Updater {
     }
 
     private static void runOnce(Context context) throws InterruptedException {
-        // Leftovers of a cycle killed mid-way (reboot, power loss). Never locker.apk / locker-backup.apk: recovery copies.
-        for (String name : new String[]{Delta.PATCH_FILE, "controller.apk", "locker-download.apk"}) {
+        // Finished files left by a cycle killed mid-way (reboot, power loss). Never locker.apk / locker-backup.apk (recovery
+        // copies), and never the .part files: those are resumed, so a weak SIM connection does not pay for the same bytes twice.
+        for (String name : new String[]{Delta.patchFile(context.getPackageName()), Delta.patchFile(LOCKER_PACKAGE),
+                "controller.apk", "locker-download.apk"}) {
             new File(context.getFilesDir(), name).delete();
-            new File(context.getFilesDir(), name + ".part").delete();
         }
         File savedLocker = new File(context.getFilesDir(), "locker.apk");
         if (!isInstalled(context, LOCKER_PACKAGE) && savedLocker.exists()) {
@@ -156,10 +157,16 @@ public final class Updater {
         State.setControllerLatest(context, data.optInt("new_version"));
         State.setServerTimeZone(context, data.optString("timezone", null));
         if (data.optInt("new_version") <= BuildConfig.VERSION_CODE || !approved(data)) return;
+        String apkUrl = data.getString("apk_url");
+        if (Http.fetchedRecently(context, apkUrl, Http.REFETCH_AFTER_MS)) {
+            Log.i(TAG, "Controller apk already fetched in the last 24 h, not again: " + apkUrl);
+            return;
+        }
 
         File apk = new File(context.getFilesDir(), "controller.apk");
         try {
-            if (!Delta.build(context, data, context.getPackageName(), apk)) Http.download(context, data.getString("apk_url"), apk);
+            if (!Delta.build(context, data, context.getPackageName(), apk)) Http.download(context, apkUrl, apk);
+            Http.markFetched(context, apkUrl);
             PackageInfo info = verify(context, apk, context.getPackageName());
             // Guards against an endless download/install loop when the server number and the apk disagree.
             if (info.versionCode <= BuildConfig.VERSION_CODE) {
@@ -188,12 +195,18 @@ public final class Updater {
 
         PackageInfo installed = installedInfo(context);
         boolean newVersion = data.optInt("current_version") != data.optInt("new_version") && approved(data);
-        if (installed == null || newVersion) {
+        String apkUrl = data.optString("apk_url");
+        // A missing locker is retried every 2 h (a power cut between download and install must not leave it down for a day).
+        long refetchAfter = installed == null ? 2 * 60 * 60 * 1000L : Http.REFETCH_AFTER_MS;
+        if ((installed == null || newVersion) && Http.fetchedRecently(context, apkUrl, refetchAfter)) {
+            Log.i(TAG, "Locker apk already fetched recently, not again: " + apkUrl);
+        } else if (installed == null || newVersion) {
             File download = new File(context.getFilesDir(), "locker-download.apk");
             try {
                 if (installed == null || !Delta.build(context, data, LOCKER_PACKAGE, download)) {
                     Http.download(context, data.getString("apk_url"), download);
                 }
+                Http.markFetched(context, apkUrl);
                 PackageInfo apk = verify(context, download, LOCKER_PACKAGE);
                 if (installed != null && sameAsInstalled(context, download)) {
                     // Server still reports an old version: reinstalling would only kill the running locker.
